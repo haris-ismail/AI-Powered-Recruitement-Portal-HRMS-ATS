@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,74 @@ import {
   Save
 } from "lucide-react";
 
+function isProfileComplete(profile: any) {
+  // Define required fields for completeness
+  return (
+    profile?.firstName &&
+    profile?.lastName &&
+    profile?.dateOfBirth &&
+    profile?.apartment &&
+    profile?.street &&
+    profile?.area &&
+    profile?.city &&
+    profile?.province &&
+    profile?.postalCode
+  );
+}
+
+function ProfileCard({ profile, educationList, experienceList, onEdit }: any) {
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <User className="h-5 w-5" />
+          <span>Profile</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div>
+            <div className="font-semibold">Name:</div>
+            <div>{profile.firstName} {profile.lastName}</div>
+            <div className="font-semibold mt-2">Date of Birth:</div>
+            <div>{profile.dateOfBirth}</div>
+            <div className="font-semibold mt-2">Email:</div>
+            <div>{profile.email}</div>
+          </div>
+          <div>
+            <div className="font-semibold">Address:</div>
+            <div>{profile.apartment}, {profile.street}, {profile.area}</div>
+            <div>{profile.city}, {profile.province}, {profile.postalCode}</div>
+          </div>
+        </div>
+        <div className="mb-4">
+          <div className="font-semibold">Motivation Letter:</div>
+          <div className="whitespace-pre-line text-gray-700 text-sm">{profile.motivationLetter || <span className="italic text-gray-400">Not provided</span>}</div>
+        </div>
+        <div className="mb-4">
+          <div className="font-semibold mb-1">Education:</div>
+          {educationList && educationList.length > 0 ? educationList.map((edu: any, i: number) => (
+            <div key={i} className="text-sm mb-1">{edu.degree} at {edu.institution} ({edu.fromDate} - {edu.toDate})</div>
+          )) : <span className="italic text-gray-400">No education info</span>}
+        </div>
+        <div className="mb-4">
+          <div className="font-semibold mb-1">Experience:</div>
+          {experienceList && experienceList.length > 0 ? experienceList.map((exp: any, i: number) => (
+            <div key={i} className="text-sm mb-1">{exp.role} at {exp.company} ({exp.fromDate} - {exp.toDate})</div>
+          )) : <span className="italic text-gray-400">No experience info</span>}
+        </div>
+        <div className="mb-4">
+          <div className="font-semibold">Resume:</div>
+          {profile.resumeUrl ? (
+            <a href={profile.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View Resume</a>
+          ) : <span className="italic text-gray-400">Not uploaded</span>}
+        </div>
+        <Button type="button" onClick={onEdit} className="mt-2">Edit Profile</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CandidateProfile() {
   const { toast } = useToast();
   const user = getCurrentUser();
@@ -45,6 +113,7 @@ export default function CandidateProfile() {
 
   const [educationList, setEducationList] = useState([
     {
+      id: undefined as number | undefined,
       degree: "",
       institution: "",
       fromDate: "",
@@ -56,6 +125,7 @@ export default function CandidateProfile() {
 
   const [experienceList, setExperienceList] = useState([
     {
+      id: undefined as number | undefined,
       company: "",
       role: "",
       fromDate: "",
@@ -64,33 +134,38 @@ export default function CandidateProfile() {
     }
   ]);
 
-  const { data: profile, isLoading } = useQuery({
+  const [isEditing, setIsEditing] = useState(false);
+  const [error, setError] = useState("");
+
+  const { data: profile, isLoading } = useQuery<any>({
     queryKey: ["/api/profile"],
-    onSuccess: (data: any) => {
-      if (data) {
-        setProfileData({
-          firstName: data.firstName || "",
-          lastName: data.lastName || "",
-          dateOfBirth: data.dateOfBirth || "",
-          apartment: data.apartment || "",
-          street: data.street || "",
-          area: data.area || "",
-          city: data.city || "",
-          province: data.province || "",
-          postalCode: data.postalCode || "",
-          motivationLetter: data.motivationLetter || ""
-        });
-        
-        if (data.education && data.education.length > 0) {
-          setEducationList(data.education);
-        }
-        
-        if (data.experience && data.experience.length > 0) {
-          setExperienceList(data.experience);
-        }
+  });
+
+  useEffect(() => {
+    if (profile) {
+      setProfileData({
+        firstName: profile.firstName || "",
+        lastName: profile.lastName || "",
+        dateOfBirth: profile.dateOfBirth || "",
+        apartment: profile.apartment || "",
+        street: profile.street || "",
+        area: profile.area || "",
+        city: profile.city || "",
+        province: profile.province || "",
+        postalCode: profile.postalCode || "",
+        motivationLetter: profile.motivationLetter || ""
+      });
+      if (profile.education && profile.education.length > 0) {
+        setEducationList(profile.education);
+      }
+      if (profile.experience && profile.experience.length > 0) {
+        setExperienceList(profile.experience);
+      }
+      if (isProfileComplete(profile)) {
+        setIsEditing(false);
       }
     }
-  });
+  }, [profile]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -181,7 +256,13 @@ export default function CandidateProfile() {
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isProfileComplete({ ...profileData, email: user?.email })) {
+      setError("Please fill all required fields to save your profile.");
+      return;
+    }
+    setError("");
     await updateProfileMutation.mutateAsync(profileData);
+    setIsEditing(false);
   };
 
   const handleEducationSubmit = async (education: any, index: number) => {
@@ -206,6 +287,7 @@ export default function CandidateProfile() {
 
   const addEducation = () => {
     setEducationList([...educationList, {
+      id: undefined,
       degree: "",
       institution: "",
       fromDate: "",
@@ -225,6 +307,7 @@ export default function CandidateProfile() {
 
   const addExperience = () => {
     setExperienceList([...experienceList, {
+      id: undefined,
       company: "",
       role: "",
       fromDate: "",
@@ -266,6 +349,76 @@ export default function CandidateProfile() {
     );
   }
 
+  // Show card if profile is complete and not editing
+  if (!isEditing && isProfileComplete({ ...profileData, email: user?.email }) && profile) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-2xl font-bold text-gray-900">HRConnect</h1>
+              <Badge className="bg-accent text-white">Candidate Portal</Badge>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <span className="text-sm font-medium text-gray-700">
+                  {profileData.firstName && profileData.lastName 
+                    ? `${profileData.firstName} ${profileData.lastName}`
+                    : user?.email
+                  }
+                </span>
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="flex">
+          {/* Sidebar */}
+          <aside className="w-64 bg-primary shadow-sm min-h-screen border-r border-primary-foreground/10">
+            <nav className="p-4 space-y-2">
+              <Link href="/candidate">
+                <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary-foreground text-primary">
+                  <User className="h-5 w-5" />
+                  <span>My Profile</span>
+                </a>
+              </Link>
+              <Link href="/candidate/jobs">
+                <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                  <Briefcase className="h-5 w-5" />
+                  <span>Job Listings</span>
+                </a>
+              </Link>
+              <Link href="/candidate/applications">
+                <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                  <FileText className="h-5 w-5" />
+                  <span>My Applications</span>
+                </a>
+              </Link>
+            </nav>
+          </aside>
+          {/* Main Content */}
+          <main className="flex-1 p-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">My Profile</h2>
+              <p className="text-gray-600">View and edit your profile information</p>
+            </div>
+            <ProfileCard 
+              profile={{ ...profileData, email: user?.email, resumeUrl: profile?.resumeUrl }} 
+              educationList={educationList} 
+              experienceList={experienceList} 
+              onEdit={() => setIsEditing(true)} 
+            />
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // ... existing code for form ...
+  // Wrap form in a fragment and add a Cancel button if editing
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -290,7 +443,6 @@ export default function CandidateProfile() {
           </div>
         </div>
       </header>
-
       <div className="flex">
         {/* Sidebar */}
         <aside className="w-64 bg-primary shadow-sm min-h-screen border-r border-primary-foreground/10">
@@ -315,15 +467,16 @@ export default function CandidateProfile() {
             </Link>
           </nav>
         </aside>
-
         {/* Main Content */}
         <main className="flex-1 p-6">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">My Profile</h2>
             <p className="text-gray-600">Complete your profile to apply for jobs</p>
           </div>
-
           <form onSubmit={handleProfileSubmit} className="space-y-6">
+            {error && (
+              <div className="bg-red-100 text-red-700 px-4 py-2 rounded mb-2 text-sm">{error}</div>
+            )}
             {/* Personal Information */}
             <Card>
               <CardHeader>
@@ -720,10 +873,15 @@ export default function CandidateProfile() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {isProfileComplete({ ...profileData, email: user?.email }) && (
+                <Button type="button" variant="outline" onClick={() => { setIsEditing(false); setError(""); }}>
+                  Cancel
+                </Button>
+              )}
               <Button 
                 type="submit" 
-                disabled={updateProfileMutation.isPending}
+                disabled={updateProfileMutation.isPending || !isProfileComplete({ ...profileData, email: user?.email })}
                 className="px-8"
               >
                 {updateProfileMutation.isPending ? "Saving..." : "Save Profile"}

@@ -5,6 +5,9 @@ import { User, Mail, Calendar, MapPin, GraduationCap, Briefcase, FileText } from
 import { useState } from "react";
 import EmailTemplateSelectModal from "./email-template-select-modal";
 import { useLocation } from "wouter";
+import { isAdmin, getCurrentUser } from "@/lib/auth";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface CandidateProfileCardProps {
   candidate: {
@@ -70,6 +73,66 @@ export default function CandidateProfileCard({
   const nextStatus = getNextStatus(application.status);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [location, navigate] = useLocation();
+
+  // Admin Notes State
+  const [noteText, setNoteText] = useState("");
+  const [noteScore, setNoteScore] = useState("");
+  const [editNoteId, setEditNoteId] = useState<number | null>(null);
+  const [editNoteText, setEditNoteText] = useState("");
+  const [editNoteScore, setEditNoteScore] = useState("");
+
+  const user = getCurrentUser();
+
+  // Fetch notes (admin only)
+  const { data: notes, refetch: refetchNotes } = useQuery({
+    queryKey: ["/api/candidates", candidate.id, "notes"],
+    enabled: isAdmin(),
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/candidates/${candidate.id}/notes`);
+      return res.json();
+    },
+  });
+
+  // Add note mutation
+  const addNoteMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/candidates/${candidate.id}/notes`, {
+        note: noteText,
+        score: noteScore ? Number(noteScore) : undefined,
+      });
+    },
+    onSuccess: () => {
+      setNoteText("");
+      setNoteScore("");
+      queryClient.invalidateQueries({ queryKey: ["/api/candidates", candidate.id, "notes"] });
+    },
+  });
+
+  // Edit note mutation
+  const editNoteMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PUT", `/api/candidates/${candidate.id}/notes/${editNoteId}`, {
+        note: editNoteText,
+        score: editNoteScore ? Number(editNoteScore) : undefined,
+      });
+    },
+    onSuccess: () => {
+      setEditNoteId(null);
+      setEditNoteText("");
+      setEditNoteScore("");
+      queryClient.invalidateQueries({ queryKey: ["/api/candidates", candidate.id, "notes"] });
+    },
+  });
+
+  // Delete note mutation
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (noteId: number) => {
+      await apiRequest("DELETE", `/api/candidates/${candidate.id}/notes/${noteId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/candidates", candidate.id, "notes"] });
+    },
+  });
 
   return (
     <Card className="w-full">
@@ -179,6 +242,88 @@ export default function CandidateProfileCard({
             onClose={() => setShowTemplateModal(false)}
           />
         )}
+
+        {/* Admin Notes Section */}
+        {isAdmin() && (
+          <div className="mt-6 border-t pt-4">
+            <h4 className="font-semibold mb-2">Internal Notes (Admin Only)</h4>
+            {/* List notes */}
+            <div className="space-y-3 mb-4">
+              {notes && notes.length > 0 ? notes.map((note: any) => (
+                <div key={note.id} className="bg-gray-50 rounded p-3 flex flex-col">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                      {note.createdAt ? new Date(note.createdAt).toLocaleString() : ""}
+                    </span>
+                    {user && note.adminId === user.id && (
+                      <div className="space-x-1">
+                        <Button size="sm" variant="ghost" onClick={() => {
+                          setEditNoteId(note.id);
+                          setEditNoteText(note.note);
+                          setEditNoteScore(note.score ?? "");
+                        }}>Edit</Button>
+                        <Button size="sm" variant="ghost" onClick={() => deleteNoteMutation.mutate(note.id)}>Delete</Button>
+                      </div>
+                    )}
+                  </div>
+                  {editNoteId === note.id ? (
+                    <div className="mt-2 flex flex-col gap-2">
+                      <textarea
+                        className="border rounded p-1 text-sm"
+                        value={editNoteText}
+                        onChange={e => setEditNoteText(e.target.value)}
+                        rows={2}
+                      />
+                      <input
+                        className="border rounded p-1 text-sm"
+                        type="number"
+                        placeholder="Score (optional)"
+                        value={editNoteScore}
+                        onChange={e => setEditNoteScore(e.target.value)}
+                        min={0}
+                        max={100}
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => editNoteMutation.mutate()}>Save</Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditNoteId(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-sm text-gray-800 mt-1">{note.note}</div>
+                      {note.score !== null && note.score !== undefined && (
+                        <div className="text-xs text-gray-600">Score: {note.score}</div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )) : (
+                <div className="text-xs text-gray-500">No notes yet.</div>
+              )}
+            </div>
+            {/* Add note form */}
+            <div className="flex flex-col gap-2">
+              <textarea
+                className="border rounded p-1 text-sm"
+                placeholder="Add a new note..."
+                value={noteText}
+                onChange={e => setNoteText(e.target.value)}
+                rows={2}
+              />
+              <input
+                className="border rounded p-1 text-sm"
+                type="number"
+                placeholder="Score (optional)"
+                value={noteScore}
+                onChange={e => setNoteScore(e.target.value)}
+                min={0}
+                max={100}
+              />
+              <Button size="sm" onClick={() => addNoteMutation.mutate()} disabled={!noteText.trim()}>Add Note</Button>
+            </div>
+          </div>
+        )}
+        {/* End Admin Notes Section */}
       </CardContent>
     </Card>
   );

@@ -1,9 +1,10 @@
 import { 
-  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates,
+  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, candidateNotes,
   type User, type InsertUser, type Candidate, type InsertCandidate,
   type Education, type InsertEducation, type Experience, type InsertExperience,
   type JobTemplate, type InsertJobTemplate, type Job, type InsertJob,
-  type Application, type InsertApplication, type EmailTemplate, type InsertEmailTemplate
+  type Application, type InsertApplication, type EmailTemplate, type InsertEmailTemplate,
+  type CandidateNote, type InsertCandidateNote
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -57,6 +58,12 @@ export interface IStorage {
   // Analytics
   getJobStats(): Promise<any>;
   getCandidateWithProfile(candidateId: number): Promise<any>;
+
+  // Candidate Notes management
+  getCandidateNotes(candidateId: number): Promise<CandidateNote[]>;
+  createCandidateNote(note: InsertCandidateNote): Promise<CandidateNote>;
+  updateCandidateNote(id: number, note: Partial<InsertCandidateNote>): Promise<CandidateNote>;
+  deleteCandidateNote(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -238,6 +245,28 @@ export class DatabaseStorage implements IStorage {
       education: candidateEducation,
       experience: candidateExperience
     };
+  }
+
+  async getCandidateNotes(candidateId: number): Promise<CandidateNote[]> {
+    return await db.select().from(candidateNotes).where(eq(candidateNotes.candidateId, candidateId));
+  }
+
+  async createCandidateNote(note: InsertCandidateNote): Promise<CandidateNote> {
+    const [newNote] = await db.insert(candidateNotes).values(note).returning();
+    return newNote;
+  }
+
+  async updateCandidateNote(id: number, note: Partial<InsertCandidateNote>): Promise<CandidateNote> {
+    const [updated] = await db
+      .update(candidateNotes)
+      .set({ ...note, updatedAt: new Date() })
+      .where(eq(candidateNotes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCandidateNote(id: number): Promise<void> {
+    await db.delete(candidateNotes).where(eq(candidateNotes.id, id));
   }
 }
 

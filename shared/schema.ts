@@ -94,6 +94,16 @@ export const emailTemplates = pgTable("email_templates", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const candidateNotes = pgTable("candidate_notes", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  adminId: integer("admin_id").references(() => users.id).notNull(),
+  note: text("note").notNull(),
+  score: integer("score"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one }) => ({
   candidate: one(candidates, {
@@ -141,6 +151,17 @@ export const applicationsRelations = relations(applications, ({ one }) => ({
   }),
 }));
 
+export const candidateNotesRelations = relations(candidateNotes, ({ one }) => ({
+  candidate: one(candidates, {
+    fields: [candidateNotes.candidateId],
+    references: [candidates.id],
+  }),
+  admin: one(users, {
+    fields: [candidateNotes.adminId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -182,6 +203,12 @@ export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit
   createdAt: true,
 });
 
+export const insertCandidateNoteSchema = createInsertSchema(candidateNotes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -199,3 +226,5 @@ export type Application = typeof applications.$inferSelect;
 export type InsertApplication = z.infer<typeof insertApplicationSchema>;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type CandidateNote = typeof candidateNotes.$inferSelect;
+export type InsertCandidateNote = z.infer<typeof insertCandidateNoteSchema>;

@@ -1,0 +1,208 @@
+# Database Structure Overview
+
+## Database Tables
+
+### 1. users Table
+Purpose: Core user authentication and role management
+
+| Column      | Type       | Constraints                | Description                    |
+|------------|------------|----------------------------|--------------------------------|
+| id         | serial     | Primary Key                | Auto-incrementing user ID      |
+| email      | text       | NOT NULL, UNIQUE           | User's email address           |
+| password   | text       | NOT NULL                   | Hashed password                |
+| role       | text       | NOT NULL, DEFAULT "candidate" | User role ("admin" or "candidate") |
+| created_at | timestamp  | DEFAULT NOW()              | Account creation timestamp     |
+
+Relationships:
+- One-to-One with candidates table
+
+---
+
+### 2. candidates Table
+Purpose: Extended candidate profile information
+
+| Column         | Type      | Constraints                | Description                |
+|---------------|-----------|----------------------------|----------------------------|
+| id            | serial    | Primary Key                | Auto-incrementing candidate ID |
+| user_id       | integer   | Foreign Key → users.id     | Reference to user account  |
+| first_name    | text      | NULL                       | Candidate's first name     |
+| last_name     | text      | NULL                       | Candidate's last name      |
+| date_of_birth | text      | NULL                       | Date of birth              |
+| apartment     | text      | NULL                       | Apartment/unit number      |
+| street        | text      | NULL                       | Street address             |
+| area          | text      | NULL                       | Area/neighborhood          |
+| city          | text      | NULL                       | City                       |
+| province      | text      | NULL                       | Province/state             |
+| postal_code   | text      | NULL                       | Postal code                |
+| resume_url    | text      | NULL                       | Resume file URL            |
+| motivation_letter | text  | NULL                       | Motivation letter content  |
+| created_at    | timestamp | DEFAULT NOW()              | Profile creation timestamp |
+| updated_at    | timestamp | DEFAULT NOW()              | Last update timestamp      |
+
+Relationships:
+- Many-to-One with users table
+- One-to-Many with education table
+- One-to-Many with experience table
+- One-to-Many with applications table
+- One-to-Many with candidate_notes table
+
+---
+
+### 3. education Table
+Purpose: Candidate educational background
+
+| Column        | Type      | Constraints                | Description                |
+|--------------|-----------|----------------------------|----------------------------|
+| id           | serial    | Primary Key                | Auto-incrementing education record ID |
+| candidate_id | integer   | Foreign Key → candidates.id| Reference to candidate      |
+| degree       | text      | NOT NULL                   | Degree/qualification name   |
+| institution  | text      | NOT NULL                   | Educational institution     |
+| from_date    | text      | NOT NULL                   | Start date of education     |
+| to_date      | text      | NOT NULL                   | End date of education       |
+| total_marks  | text      | NOT NULL                   | Total possible marks        |
+| obtained_marks | text    | NOT NULL                   | Marks obtained              |
+
+Relationships:
+- Many-to-One with candidates table
+
+---
+
+### 4. experience Table
+Purpose: Candidate work experience
+
+| Column        | Type      | Constraints                | Description                |
+|--------------|-----------|----------------------------|----------------------------|
+| id           | serial    | Primary Key                | Auto-incrementing experience record ID |
+| candidate_id | integer   | Foreign Key → candidates.id| Reference to candidate      |
+| company      | text      | NOT NULL                   | Company name                |
+| role         | text      | NOT NULL                   | Job title/role              |
+| from_date    | text      | NOT NULL                   | Start date of employment    |
+| to_date      | text      | NOT NULL                   | End date of employment      |
+| skills       | text      | NOT NULL                   | Skills used in this role    |
+
+Relationships:
+- Many-to-One with candidates table
+
+---
+
+### 5. job_templates Table
+Purpose: Reusable job posting templates
+
+| Column         | Type      | Constraints                | Description                |
+|---------------|-----------|----------------------------|----------------------------|
+| id            | serial    | Primary Key                | Auto-incrementing template ID |
+| title         | text      | NOT NULL                   | Job title                  |
+| department    | text      | NOT NULL                   | Department                 |
+| experience_level | text   | NOT NULL                   | Required experience level  |
+| location      | text      | NOT NULL                   | Job location               |
+| salary_min    | integer   | NULL                       | Minimum salary             |
+| field         | text      | NOT NULL                   | Job field/category         |
+| required_skills | text    | NOT NULL                   | Required skills            |
+| description   | text      | NOT NULL                   | Job description            |
+| created_at    | timestamp | DEFAULT NOW()              | Template creation timestamp|
+
+Relationships: None (standalone table)
+
+---
+
+### 6. jobs Table
+Purpose: Active job postings
+
+| Column         | Type      | Constraints                | Description                |
+|---------------|-----------|----------------------------|----------------------------|
+| id            | serial    | Primary Key                | Auto-incrementing job ID   |
+| title         | text      | NOT NULL                   | Job title                  |
+| department    | text      | NOT NULL                   | Department                 |
+| experience_level | text   | NOT NULL                   | Required experience level  |
+| location      | text      | NOT NULL                   | Job location               |
+| salary_min    | integer   | NULL                       | Minimum salary             |
+| field         | text      | NOT NULL                   | Job field/category         |
+| required_skills | text    | NOT NULL                   | Required skills            |
+| description   | text      | NOT NULL                   | Job description            |
+| status        | text      | NOT NULL, DEFAULT "active" | Job status ("active" or "closed") |
+| created_at    | timestamp | DEFAULT NOW()              | Job posting creation timestamp |
+
+Relationships:
+- One-to-Many with applications table
+
+---
+
+### 7. applications Table
+Purpose: Job applications submitted by candidates
+
+| Column         | Type      | Constraints                | Description                |
+|---------------|-----------|----------------------------|----------------------------|
+| id            | serial    | Primary Key                | Auto-incrementing application ID |
+| job_id        | integer   | Foreign Key → jobs.id      | Reference to job posting   |
+| candidate_id  | integer   | Foreign Key → candidates.id| Reference to candidate     |
+| status        | text      | NOT NULL, DEFAULT "applied" | Application status         |
+| applied_at    | timestamp | DEFAULT NOW()              | Application submission timestamp |
+| updated_at    | timestamp | DEFAULT NOW()              | Last status update timestamp |
+
+Status Values: "applied", "shortlisted", "interview", "hired", "onboarded", "rejected"
+
+Relationships:
+- Many-to-One with jobs table
+- Many-to-One with candidates table
+
+---
+
+### 8. email_templates Table
+Purpose: Reusable email templates for communication
+
+| Column      | Type      | Constraints                | Description                |
+|-------------|-----------|----------------------------|----------------------------|
+| id          | serial    | Primary Key                | Auto-incrementing template ID |
+| name        | text      | NOT NULL                   | Template name              |
+| subject     | text      | NOT NULL                   | Email subject line         |
+| body        | text      | NOT NULL                   | Email body content         |
+| created_at  | timestamp | DEFAULT NOW()              | Template creation timestamp|
+
+Relationships: None (standalone table)
+
+---
+
+### 9. candidate_notes Table
+Purpose: Admin notes and scoring for candidates
+
+| Column      | Type      | Constraints                | Description                |
+|-------------|-----------|----------------------------|----------------------------|
+| id          | serial    | Primary Key                | Auto-incrementing note ID  |
+| candidate_id| integer   | Foreign Key → candidates.id| Reference to candidate     |
+| admin_id    | integer   | Foreign Key → users.id     | Reference to admin user    |
+| note        | text      | NOT NULL                   | Note content               |
+| score       | integer   | NULL                       | Numerical score            |
+| created_at  | timestamp | DEFAULT NOW()              | Note creation timestamp    |
+| updated_at  | timestamp | DEFAULT NOW()              | Last update timestamp      |
+
+Relationships:
+- Many-to-One with candidates table
+- Many-to-One with users table (admin who created the note)
+
+---
+
+## Database Relationships Summary
+
+Entity Relationship Diagram:
+
+users (1) ←→ (1) candidates (1) ←→ (many) education
+                                    ↓
+                              (1) ←→ (many) experience
+                                    ↓
+                              (1) ←→ (many) applications (many) ←→ (1) jobs
+                                    ↓
+                              (1) ←→ (many) candidate_notes (many) ←→ (1) users (admin)
+
+job_templates (standalone)
+email_templates (standalone)
+
+Key Relationships:
+1. User-Candidate: One-to-One (each user has one candidate profile)
+2. Candidate-Education: One-to-Many (candidate can have multiple education records)
+3. Candidate-Experience: One-to-Many (candidate can have multiple work experiences)
+4. Candidate-Applications: One-to-Many (candidate can apply to multiple jobs)
+5. Job-Applications: One-to-Many (job can have multiple applications)
+6. Candidate-Notes: One-to-Many (candidate can have multiple admin notes)
+7. Admin-Notes: One-to-Many (admin can create multiple notes)
+
+This structure supports a comprehensive HRMS with user management, candidate profiles, job postings, applications, and administrative features. 

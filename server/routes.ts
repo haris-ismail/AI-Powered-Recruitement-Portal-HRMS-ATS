@@ -453,6 +453,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Candidate Notes (Admin only)
+  app.get('/api/candidates/:id/notes', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const notes = await storage.getCandidateNotes(candidateId);
+      res.json(notes);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.post('/api/candidates/:id/notes', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const adminId = req.user.id;
+      const { note, score } = req.body;
+      const noteData = { candidateId, adminId, note, score };
+      const created = await storage.createCandidateNote(noteData);
+      res.status(201).json(created);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.put('/api/candidates/:id/notes/:noteId', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const noteId = parseInt(req.params.noteId);
+      const { note, score } = req.body;
+      const updated = await storage.updateCandidateNote(noteId, { note, score });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.delete('/api/candidates/:id/notes/:noteId', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const noteId = parseInt(req.params.noteId);
+      await storage.deleteCandidateNote(noteId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
   // Serve uploaded files
   app.use('/uploads', (await import('express')).static('uploads'));
 
