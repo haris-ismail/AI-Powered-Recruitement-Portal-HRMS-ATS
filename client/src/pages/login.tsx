@@ -9,6 +9,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { setToken, getCurrentUser } from "@/lib/auth";
 import { Shield, User } from "lucide-react";
+import "./login-custom.css";
+import logo from "@/assets/NASTPLogo.png";
+import adminIcon from "@/assets/admin-icon.svg";
+import candidateIcon from "@/assets/candidate-icon.svg";
+import bgImg from "@/assets/background.jpg";
 
 export default function Login() {
   const [, navigate] = useLocation();
@@ -112,154 +117,103 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="w-32 h-16 mx-auto rounded-lg shadow-md bg-white flex items-center justify-center mb-4">
-            <span className="text-2xl font-bold text-primary">HR</span>
+    <div className="login-wrapper" style={{ backgroundImage: `url(${bgImg})` }}>
+      <div className="info-section">
+        <h1 className="info-title">NASTP Recruitment Portal</h1>
+        <h2 className="info-subtitle">Job Portal & HRMS Platform</h2>
+        <ul className="info-points">
+          <li>Apply smarter, not harder with the NASTP Recruitment Portal.</li>
+          <li>Discover jobs tailored to your skills through intelligent matching.</li>
+          <li>Simplify your application process with an easy-to-use platform.</li>
+          <li>Stay informed at every step, from application to interview.</li>
+        </ul>
+      </div>
+      <div className="login-container">
+        <div className="login-box">
+          <img src={logo} alt="Form Logo" className="form-logo" />
+          <div className="toggle-switch">
+            <div className="toggle-track">
+              <div className={`toggle-slider ${activeTab === 'admin' ? 'left' : 'right'}`} />
+              <button
+                type="button"
+                className={`toggle-btn ${activeTab === 'admin' ? 'active' : ''}`}
+                onClick={() => setActiveTab('admin')}
+              >
+                <img src={adminIcon} alt="Admin Icon" className="icon" />
+                Admin
+              </button>
+              <button
+                type="button"
+                className={`toggle-btn ${activeTab === 'candidate' ? 'active' : ''}`}
+                onClick={() => setActiveTab('candidate')}
+              >
+                <img src={candidateIcon} alt="Candidate Icon" className="icon" />
+                Candidate
+              </button>
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">NASTP Recruitment Portal</h1>
-          <p className="text-gray-600 mt-2">Job Portal & HRMS Platform</p>
+          <div className="form-wrapper">
+            {activeTab === 'admin' ? (
+              <form onSubmit={handleLogin} className="form">
+                <div className="form-fields">
+                  <label htmlFor="admin-email" className="form-label">Email Address</label>
+                  <input
+                    id="admin-email"
+                    name="email"
+                    type="email"
+                    defaultValue="harisismail68@gmail.com"
+                    required
+                    className="form-input"
+                  />
+                  <label htmlFor="admin-password" className="form-label">Password</label>
+                  <input
+                    id="admin-password"
+                    name="password"
+                    type="password"
+                    defaultValue="12345678"
+                    required
+                    className="form-input"
+                  />
+                </div>
+                <button type="submit" className="login-btn" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign In as Admin"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin} className="form">
+                <div className="form-fields">
+                  <label htmlFor="candidate-email" className="form-label">Email Address</label>
+                  <input
+                    id="candidate-email"
+                    name="email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    required
+                    className="form-input"
+                  />
+                  <label htmlFor="candidate-password" className="form-label">Password</label>
+                  <input
+                    id="candidate-password"
+                    name="password"
+                    type="password"
+                    placeholder="••••••••"
+                    required
+                    className="form-input"
+                  />
+                  <div className="forgot-password">
+                    <a href="/forgot-password">Forgot Password?</a>
+                  </div>
+                </div>
+                <button type="submit" className="login-btn" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign In"}
+                </button>
+                <div className="signup-link">
+                  <a href="/signup">Don’t have an account? Sign up</a>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
-
-        <Card className="shadow-lg">
-          <CardContent className="p-8">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="admin" className="flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  Admin
-                </TabsTrigger>
-                <TabsTrigger value="candidate" className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Candidate
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="admin">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <Label htmlFor="admin-email">Email Address</Label>
-                    <Input
-                      id="admin-email"
-                      name="email"
-                      type="email"
-                      defaultValue="harisismail68@gmail.com"
-                      required
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="admin-password">Password</Label>
-                    <Input
-                      id="admin-password"
-                      name="password"
-                      type="password"
-                      defaultValue="12345678"
-                      required
-                      className="mt-2"
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={loading}
-                  >
-                    {loading ? "Signing in..." : "Sign In as Admin"}
-                  </Button>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="candidate">
-                <Tabs defaultValue="login" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="login">Login</TabsTrigger>
-                    <TabsTrigger value="register">Register</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="login">
-                    <form onSubmit={handleLogin} className="space-y-4">
-                      <div>
-                        <Label htmlFor="candidate-email">Email Address</Label>
-                        <Input
-                          id="candidate-email"
-                          name="email"
-                          type="email"
-                          placeholder="your.email@example.com"
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="candidate-password">Password</Label>
-                        <Input
-                          id="candidate-password"
-                          name="password"
-                          type="password"
-                          placeholder="••••••••"
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={loading}
-                      >
-                        {loading ? "Signing in..." : "Sign In"}
-                      </Button>
-                    </form>
-                  </TabsContent>
-
-                  <TabsContent value="register">
-                    <form onSubmit={handleRegister} className="space-y-4">
-                      <div>
-                        <Label htmlFor="register-email">Email Address</Label>
-                        <Input
-                          id="register-email"
-                          name="email"
-                          type="email"
-                          placeholder="your.email@example.com"
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="register-password">Password</Label>
-                        <Input
-                          id="register-password"
-                          name="password"
-                          type="password"
-                          placeholder="••••••••"
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="confirm-password">Confirm Password</Label>
-                        <Input
-                          id="confirm-password"
-                          name="confirmPassword"
-                          type="password"
-                          placeholder="••••••••"
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={loading}
-                      >
-                        {loading ? "Creating account..." : "Create Account"}
-                      </Button>
-                    </form>
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

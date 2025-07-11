@@ -104,6 +104,18 @@ export const candidateNotes = pgTable("candidate_notes", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const candidateReviews = pgTable("candidate_reviews", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  applicationId: integer("application_id").references(() => applications.id).notNull(),
+  reviewerId: integer("reviewer_id").references(() => users.id).notNull(),
+  stage: text("stage").notNull(),
+  rating: integer("rating").notNull(),
+  feedback: text("feedback"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one }) => ({
   candidate: one(candidates, {
@@ -162,6 +174,21 @@ export const candidateNotesRelations = relations(candidateNotes, ({ one }) => ({
   }),
 }));
 
+export const candidateReviewsRelations = relations(candidateReviews, ({ one }) => ({
+  candidate: one(candidates, {
+    fields: [candidateReviews.candidateId],
+    references: [candidates.id],
+  }),
+  application: one(applications, {
+    fields: [candidateReviews.applicationId],
+    references: [applications.id],
+  }),
+  reviewer: one(users, {
+    fields: [candidateReviews.reviewerId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -209,6 +236,12 @@ export const insertCandidateNoteSchema = createInsertSchema(candidateNotes).omit
   updatedAt: true,
 });
 
+export const insertCandidateReviewSchema = createInsertSchema(candidateReviews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -228,3 +261,5 @@ export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type CandidateNote = typeof candidateNotes.$inferSelect;
 export type InsertCandidateNote = z.infer<typeof insertCandidateNoteSchema>;
+export type CandidateReview = typeof candidateReviews.$inferSelect;
+export type InsertCandidateReview = z.infer<typeof insertCandidateReviewSchema>;

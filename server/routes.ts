@@ -498,6 +498,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Candidate Reviews (Admin/Panel only)
+  app.get('/api/applications/:id/reviews', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const applicationId = parseInt(req.params.id);
+      const stage = req.query.stage as string | undefined;
+      const reviews = await storage.getCandidateReviews(applicationId, stage);
+      res.json(reviews);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.post('/api/applications/:id/reviews', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const applicationId = parseInt(req.params.id);
+      const reviewerId = req.user.id;
+      const { candidateId, stage, rating, feedback } = req.body;
+      const reviewData = { candidateId, applicationId, reviewerId, stage, rating, feedback };
+      const created = await storage.createCandidateReview(reviewData);
+      res.status(201).json(created);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.put('/api/applications/:id/reviews/:reviewId', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const reviewId = parseInt(req.params.reviewId);
+      const { stage, rating, feedback } = req.body;
+      const updated = await storage.updateCandidateReview(reviewId, { stage, rating, feedback });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.delete('/api/applications/:id/reviews/:reviewId', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const reviewId = parseInt(req.params.reviewId);
+      await storage.deleteCandidateReview(reviewId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
   // Serve uploaded files
   app.use('/uploads', (await import('express')).static('uploads'));
 

@@ -21,11 +21,6 @@ function Router() {
       <Route path="/login" component={Login} />
       
       {/* Admin Routes */}
-      <Route path="/admin">
-        <AuthGuard requiredRole="admin">
-          <AdminDashboard />
-        </AuthGuard>
-      </Route>
       <Route path="/admin/jobs">
         <AuthGuard requiredRole="admin">
           <AdminJobs />
@@ -44,6 +39,11 @@ function Router() {
       <Route path="/admin/email/compose">
         <AuthGuard requiredRole="admin">
           <EmailComposePage />
+        </AuthGuard>
+      </Route>
+      <Route path="/admin">
+        <AuthGuard requiredRole="admin">
+          <AdminDashboard />
         </AuthGuard>
       </Route>
 

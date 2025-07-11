@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getCurrentUser, removeToken } from "@/lib/auth";
+import { getCurrentUser, removeToken, isAdmin } from "@/lib/auth";
 import CandidateProfileCard from "@/components/candidate-profile-card";
 import { 
   BarChart3, 
@@ -32,18 +32,43 @@ const PIPELINE_STAGES = [
 ];
 
 export default function AdminPipeline() {
+  console.log("AdminPipeline component is rendering"); // Debug log
   const { toast } = useToast();
   const user = getCurrentUser();
   const [selectedJobId, setSelectedJobId] = useState<string>("");
 
-  const { data: jobs } = useQuery({
+  console.log("Current user:", user); // Debug log
+  console.log("User role:", user?.role); // Debug log
+  console.log("Is admin:", isAdmin()); // Debug log
+
+  // Check if user is authenticated and is admin
+  if (!user) {
+    console.error("No user found");
+    return <div>Loading...</div>;
+  }
+
+  if (user.role !== 'admin') {
+    console.error("User is not admin:", user.role);
+    return <div>Access denied. Admin role required.</div>;
+  }
+
+  const { data: jobs, error: jobsError } = useQuery({
     queryKey: ["/api/jobs"],
+    retry: false,
   });
 
-  const { data: applications, refetch: refetchApplications } = useQuery({
+  const { data: applications, refetch: refetchApplications, error: applicationsError } = useQuery({
     queryKey: [`/api/admin/applications/${selectedJobId}`],
     enabled: !!selectedJobId,
+    retry: false,
   });
+
+  // Log any errors
+  if (jobsError) console.error("Jobs error:", jobsError);
+  if (applicationsError) console.error("Applications error:", applicationsError);
+
+  console.log("Jobs data:", jobs); // Debug log
+  console.log("Applications data:", applications); // Debug log
 
   const updateApplicationMutation = useMutation({
     mutationFn: async ({ applicationId, status }: { applicationId: number; status: string }) => {
@@ -82,7 +107,7 @@ export default function AdminPipeline() {
     window.location.href = "/login";
   };
 
-  const groupedApplications = applications?.reduce((acc: any, app: any) => {
+  const groupedApplications = (applications as any[])?.reduce((acc: any, app: any) => {
     if (!acc[app.status]) {
       acc[app.status] = [];
     }
@@ -197,7 +222,7 @@ export default function AdminPipeline() {
                     <SelectValue placeholder="Choose a job position" />
                   </SelectTrigger>
                   <SelectContent>
-                    {jobs?.map((job: any) => (
+                    {(jobs as any[])?.map((job: any) => (
                       <SelectItem key={job.id} value={job.id.toString()}>
                         {job.title} - {job.department}
                       </SelectItem>
@@ -233,15 +258,26 @@ export default function AdminPipeline() {
                           No candidates in this stage
                         </p>
                       ) : (
-                        stageApplications.map((application: any) => (
-                          <CandidateProfileCard
-                            key={application.id}
-                            candidate={application.candidate}
-                            application={application}
-                            onStatusChange={handleStatusChange}
-                            onSendEmail={handleSendEmail}
-                          />
-                        ))
+                        stageApplications.map((application: any) => {
+                          try {
+                            return (
+                              <CandidateProfileCard
+                                key={application.id}
+                                candidate={application.candidate}
+                                application={application}
+                                onStatusChange={handleStatusChange}
+                                onSendEmail={handleSendEmail}
+                              />
+                            );
+                          } catch (error) {
+                            console.error("Error rendering CandidateProfileCard:", error);
+                            return (
+                              <Card key={application.id} className="p-4">
+                                <p className="text-red-600">Error loading candidate profile</p>
+                              </Card>
+                            );
+                          }
+                        })
                       )}
                     </CardContent>
                   </Card>

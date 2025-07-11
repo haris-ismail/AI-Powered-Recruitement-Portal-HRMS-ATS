@@ -1,6 +1,13 @@
+import dotenv from "dotenv";
+dotenv.config();
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
+import fs from "fs";
+
+console.log("CWD:", process.cwd());
+console.log("ENV FILE EXISTS:", fs.existsSync(".env"));
+console.log("DATABASE_URL:", process.env.DATABASE_URL);
 
 if (!process.env.DATABASE_URL) {
   throw new Error(

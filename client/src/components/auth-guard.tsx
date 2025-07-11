@@ -20,7 +20,7 @@ export default function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     if (requiredRole && user.role !== requiredRole) {
       // Redirect based on user role
       if (user.role === "admin") {
-        navigate("/admin");
+        navigate("/admin/jobs");
       } else {
         navigate("/candidate");
       }

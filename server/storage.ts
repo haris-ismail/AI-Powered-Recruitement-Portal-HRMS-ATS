@@ -1,10 +1,11 @@
 import { 
-  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, candidateNotes,
+  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, candidateNotes, candidateReviews,
   type User, type InsertUser, type Candidate, type InsertCandidate,
   type Education, type InsertEducation, type Experience, type InsertExperience,
   type JobTemplate, type InsertJobTemplate, type Job, type InsertJob,
   type Application, type InsertApplication, type EmailTemplate, type InsertEmailTemplate,
-  type CandidateNote, type InsertCandidateNote
+  type CandidateNote, type InsertCandidateNote,
+  type CandidateReview, type InsertCandidateReview
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -64,6 +65,12 @@ export interface IStorage {
   createCandidateNote(note: InsertCandidateNote): Promise<CandidateNote>;
   updateCandidateNote(id: number, note: Partial<InsertCandidateNote>): Promise<CandidateNote>;
   deleteCandidateNote(id: number): Promise<void>;
+
+  // Candidate Reviews management
+  getCandidateReviews(applicationId: number, stage?: string): Promise<CandidateReview[]>;
+  createCandidateReview(review: InsertCandidateReview): Promise<CandidateReview>;
+  updateCandidateReview(id: number, review: Partial<InsertCandidateReview>): Promise<CandidateReview>;
+  deleteCandidateReview(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -267,6 +274,32 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCandidateNote(id: number): Promise<void> {
     await db.delete(candidateNotes).where(eq(candidateNotes.id, id));
+  }
+
+  async getCandidateReviews(applicationId: number, stage?: string): Promise<CandidateReview[]> {
+    if (stage) {
+      return await db.select().from(candidateReviews)
+        .where(and(eq(candidateReviews.applicationId, applicationId), eq(candidateReviews.stage, stage)));
+    }
+    return await db.select().from(candidateReviews).where(eq(candidateReviews.applicationId, applicationId));
+  }
+
+  async createCandidateReview(review: InsertCandidateReview): Promise<CandidateReview> {
+    const [newReview] = await db.insert(candidateReviews).values(review).returning();
+    return newReview;
+  }
+
+  async updateCandidateReview(id: number, review: Partial<InsertCandidateReview>): Promise<CandidateReview> {
+    const [updated] = await db
+      .update(candidateReviews)
+      .set({ ...review, updatedAt: new Date() })
+      .where(eq(candidateReviews.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCandidateReview(id: number): Promise<void> {
+    await db.delete(candidateReviews).where(eq(candidateReviews.id, id));
   }
 }
 
