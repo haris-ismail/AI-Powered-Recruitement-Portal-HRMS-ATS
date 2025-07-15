@@ -199,6 +199,12 @@ export default function CandidateProfileCard({
       setReviewStage(application.status);
       queryClient.invalidateQueries({ queryKey: ["/api/applications", application.id, "reviews"] });
     },
+    onError: (error: any) => {
+      alert(
+        error?.message ||
+        "Failed to submit review. Please check your input or try again later."
+      );
+    }
   });
 
   // Delete review mutation
@@ -272,6 +278,7 @@ export default function CandidateProfileCard({
       </Card>
     );
   }
+  console.log("CandidateProfileCard candidate prop:", candidate);
 
   return (
     <Card className="w-full">
@@ -283,13 +290,10 @@ export default function CandidateProfileCard({
             </div>
             <div>
               <h3 className="font-semibold text-lg">
-                {candidate.firstName && candidate.lastName 
-                  ? `${candidate.firstName} ${candidate.lastName}`
-                  : "Name not provided"}
+                {candidate?.firstName && candidate?.lastName ? `${candidate.firstName} ${candidate.lastName}` : "Name not provided"}
               </h3>
               <div className="flex items-center text-sm text-gray-600 mt-1">
-                <Mail className="h-4 w-4 mr-1" />
-                {candidate.email || "Email not provided"}
+                <Mail className="h-4 w-4 mr-1" /> {candidate?.email || "Email not provided"}
               </div>
             </div>
           </div>
@@ -299,21 +303,21 @@ export default function CandidateProfileCard({
         </div>
 
         <div className="space-y-3 text-sm">
-          {candidate.dateOfBirth && (
+          {candidate?.dateOfBirth && (
             <div className="flex items-center text-gray-600">
               <Calendar className="h-4 w-4 mr-2" />
               <span>Born: {new Date(candidate.dateOfBirth).toLocaleDateString()}</span>
             </div>
           )}
 
-          {candidate.city && (
+          {candidate?.city && (
             <div className="flex items-center text-gray-600">
               <MapPin className="h-4 w-4 mr-2" />
               <span>{candidate.city}</span>
             </div>
           )}
 
-          {candidate.education && candidate.education.length > 0 && (
+          {candidate?.education && candidate.education.length > 0 && (
             <div className="flex items-start text-gray-600">
               <GraduationCap className="h-4 w-4 mr-2 mt-0.5" />
               <div>
@@ -323,7 +327,7 @@ export default function CandidateProfileCard({
             </div>
           )}
 
-          {candidate.experience && candidate.experience.length > 0 && (
+          {candidate?.experience && candidate.experience.length > 0 && (
             <div className="flex items-start text-gray-600">
               <Briefcase className="h-4 w-4 mr-2 mt-0.5" />
               <div>
@@ -333,15 +337,10 @@ export default function CandidateProfileCard({
             </div>
           )}
 
-          {candidate.resumeUrl && (
+          {candidate?.resumeUrl && (
             <div className="flex items-center text-gray-600">
               <FileText className="h-4 w-4 mr-2" />
-              <a 
-                href={candidate.resumeUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
+              <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" >
                 View Resume
               </a>
             </div>
@@ -380,13 +379,9 @@ export default function CandidateProfileCard({
                         <Badge className={getStageColor(review.stage)}>
                           {getStageLabel(review.stage)}
                         </Badge>
-                        <span className="text-sm text-gray-600">
-                          by {review.reviewer.email}
-                        </span>
+                        <span className="text-sm text-gray-600"> by {review.reviewer?.email || "Unknown"} </span>
                         {review.reviewerId === user?.id && (
-                          <Badge variant="outline" className="text-xs">
-                            Your Review
-                          </Badge>
+                          <Badge variant="outline" className="text-xs"> Your Review </Badge>
                         )}
                       </div>
                       <div className="flex items-center space-x-1">

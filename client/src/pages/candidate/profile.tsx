@@ -24,6 +24,7 @@ import {
   Building,
   Save
 } from "lucide-react";
+import logo from "@/assets/NASTPLogo.png";
 
 function isProfileComplete(profile: any) {
   // Define required fields for completeness
@@ -134,7 +135,7 @@ export default function CandidateProfile() {
     }
   ]);
 
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
   const [error, setError] = useState("");
 
   const { data: profile, isLoading } = useQuery<any>({
@@ -155,14 +156,13 @@ export default function CandidateProfile() {
         postalCode: profile.postalCode || "",
         motivationLetter: profile.motivationLetter || ""
       });
-      if (profile.education && profile.education.length > 0) {
-        setEducationList(profile.education);
-      }
-      if (profile.experience && profile.experience.length > 0) {
-        setExperienceList(profile.experience);
-      }
+      setEducationList(profile.education || []);
+      setExperienceList(profile.experience || []);
+      // Set isEditing based on profile completeness
       if (isProfileComplete(profile)) {
         setIsEditing(false);
+      } else {
+        setIsEditing(true);
       }
     }
   }, [profile]);
@@ -238,12 +238,14 @@ export default function CandidateProfile() {
       if (!response.ok) throw new Error("Upload failed");
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Success",
         description: "Resume uploaded successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      // Instead of refetching, update the local state for resumeUrl
+      setProfileData(prev => ({ ...prev, resumeUrl: data.resumeUrl }));
+      // queryClient.invalidateQueries({ queryKey: ["/api/profile"] }); // Removed
     },
     onError: (error: any) => {
       toast({
@@ -357,7 +359,7 @@ export default function CandidateProfile() {
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">HRConnect</h1>
+              <img src={logo} alt="NASTP Logo" className="h-20 w-auto" />
               <Badge className="bg-accent text-white">Candidate Portal</Badge>
             </div>
             <div className="flex items-center space-x-4">
@@ -425,7 +427,7 @@ export default function CandidateProfile() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center space-x-4">
-            <h1 className="text-2xl font-bold text-gray-900">HRConnect</h1>
+            <img src={logo} alt="NASTP Logo" className="h-20 w-auto" />
             <Badge className="bg-accent text-white">Candidate Portal</Badge>
           </div>
           <div className="flex items-center space-x-4">

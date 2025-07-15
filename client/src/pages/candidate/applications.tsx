@@ -19,6 +19,7 @@ import {
   Video,
   GraduationCap
 } from "lucide-react";
+import logo from "@/assets/NASTPLogo.png";
 
 const STATUS_CONFIG = {
   applied: {
@@ -117,7 +118,7 @@ export default function CandidateApplications() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center space-x-4">
-            <h1 className="text-2xl font-bold text-gray-900">HRConnect</h1>
+            <img src={logo} alt="NASTP Logo" className="h-20 w-auto" />
             <Badge className="bg-accent text-white">Candidate Portal</Badge>
           </div>
           <div className="flex items-center space-x-4">

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
+import Signup from "@/pages/signup";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminJobs from "@/pages/admin/jobs";
 import AdminPipeline from "@/pages/admin/pipeline";
@@ -14,11 +15,13 @@ import CandidateProfile from "@/pages/candidate/profile";
 import CandidateJobs from "@/pages/candidate/jobs";
 import CandidateApplications from "@/pages/candidate/applications";
 import AuthGuard from "@/components/auth-guard";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/signup" component={Signup} />
       
       {/* Admin Routes */}
       <Route path="/admin/jobs">
@@ -77,12 +80,14 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

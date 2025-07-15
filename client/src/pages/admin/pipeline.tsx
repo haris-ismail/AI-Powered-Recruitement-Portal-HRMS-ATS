@@ -22,6 +22,7 @@ import {
   CheckCircle,
   GraduationCap
 } from "lucide-react";
+import logo from "@/assets/NASTPLogo.png";
 
 const PIPELINE_STAGES = [
   { key: "applied", label: "Applied", icon: FileText, color: "blue" },
@@ -154,7 +155,7 @@ export default function AdminPipeline() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center space-x-4">
-            <h1 className="text-2xl font-bold text-gray-900">HRConnect Admin</h1>
+            <img src={logo} alt="NASTP Logo" className="h-20 w-auto" />
             <Badge className="bg-primary text-white">Admin Panel</Badge>
           </div>
           <div className="flex items-center space-x-4">
@@ -234,7 +235,7 @@ export default function AdminPipeline() {
           </Card>
 
           {selectedJobId ? (
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div className="flex flex-col gap-6">
               {PIPELINE_STAGES.map((stage) => {
                 const stageApplications = groupedApplications[stage.key] || [];
                 const IconComponent = stage.icon;
@@ -260,6 +261,13 @@ export default function AdminPipeline() {
                       ) : (
                         stageApplications.map((application: any) => {
                           try {
+                            if (!application.candidate) {
+                              return (
+                                <Card key={application.id} className="p-4">
+                                  <p className="text-red-600">Candidate profile missing for this application</p>
+                                </Card>
+                              );
+                            }
                             return (
                               <CandidateProfileCard
                                 key={application.id}

@@ -208,7 +208,7 @@ export default function Login() {
                   {loading ? "Signing in..." : "Sign In"}
                 </button>
                 <div className="signup-link">
-                  <a href="/signup">Don’t have an account? Sign up</a>
+                  <a onClick={() => navigate("/signup")} style={{ cursor: "pointer" }}>Don’t have an account? Sign up</a>
                 </div>
               </form>
             )}

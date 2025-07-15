@@ -3,13 +3,15 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 
-function fillTemplate(template: string, candidate: any) {
-  return template
-    .replace(/{firstName}/g, candidate.firstName || "")
-    .replace(/{lastName}/g, candidate.lastName || "")
-    .replace(/{email}/g, candidate.email || "")
-    .replace(/{dateOfBirth}/g, candidate.dateOfBirth || "")
-    .replace(/{city}/g, candidate.city || "");
+// Defensive fillTemplate function
+function fillTemplate(body: string | undefined, candidate: any) {
+  if (typeof body !== "string") return "";
+  return body
+    .replace(/{firstName}/g, candidate?.firstName || "")
+    .replace(/{lastName}/g, candidate?.lastName || "")
+    .replace(/{email}/g, candidate?.email || "")
+    .replace(/{dateOfBirth}/g, candidate?.dateOfBirth || "")
+    .replace(/{city}/g, candidate?.city || "");
 }
 
 export default function EmailComposePage() {
@@ -122,6 +124,24 @@ export default function EmailComposePage() {
   }
 
   // Step 2: Draft and send
+  function handleSend() {
+    const to = candidate?.email || "";
+    const subject = typeof selectedTemplate?.subject === "string"
+      ? fillTemplate(selectedTemplate.subject, candidate)
+      : "";
+    const body = typeof selectedTemplate?.body === "string"
+      ? fillTemplate(selectedTemplate.body, candidate)
+      : "";
+
+    if (!to || !subject || !body) {
+      alert("Missing candidate email or template content.");
+      return;
+    }
+
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(gmailUrl, "_blank");
+  }
+
   return (
     <div className="p-8 max-w-lg mx-auto">
       <h2 className="text-lg font-semibold mb-4">Draft Email</h2>
@@ -139,11 +159,7 @@ export default function EmailComposePage() {
       </div>
       <div className="mt-4 flex justify-end space-x-2">
         <Button variant="ghost" onClick={() => navigate("/admin/pipeline")}>Cancel</Button>
-        <Button onClick={() => {
-          const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(candidate.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-          window.open(gmailUrl, '_blank');
-          navigate("/admin/pipeline");
-        }}>Send via Gmail</Button>
+        <Button onClick={handleSend}>Send via Gmail</Button>
       </div>
     </div>
   );
