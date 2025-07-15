@@ -21,9 +21,19 @@ import {
   Mail,
   Edit,
   Trash,
-  X
+  X,
+  FileText
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
+
+interface EmailTemplate {
+  id: number;
+  name: string;
+  subject: string;
+  body: string;
+  createdAt?: string;
+  // Add other fields as needed
+}
 
 export default function AdminEmailTemplates() {
   const { toast } = useToast();
@@ -35,7 +45,7 @@ export default function AdminEmailTemplates() {
     body: ""
   });
 
-  const { data: emailTemplates, isLoading } = useQuery({
+  const { data: emailTemplates, isLoading } = useQuery<EmailTemplate[]>({
     queryKey: ["/api/email-templates"],
   });
 
@@ -147,6 +157,12 @@ export default function AdminEmailTemplates() {
               <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary text-white">
                 <Calendar className="h-5 w-5" />
                 <span>Email Templates</span>
+              </a>
+            </Link>
+            <Link href="/admin/assessment-templates">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Assessment Templates</span>
               </a>
             </Link>
           </nav>
@@ -289,7 +305,7 @@ export default function AdminEmailTemplates() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {emailTemplates?.map((template: any) => (
+                {emailTemplates?.map((template: EmailTemplate) => (
                   <Card key={template.id}>
                     <CardHeader className="flex flex-row items-center justify-between">
                       <div className="flex items-center space-x-2">
@@ -320,7 +336,7 @@ export default function AdminEmailTemplates() {
                           </div>
                         </div>
                         <div className="text-xs text-gray-500">
-                          Created: {new Date(template.createdAt).toLocaleDateString()}
+                          Created: {new Date(template.createdAt || '').toLocaleDateString()}
                         </div>
                       </div>
                     </CardContent>

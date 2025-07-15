@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,6 +22,36 @@ import {
   GraduationCap
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
+import React, { useEffect, useState } from "react";
+
+// Add these types for assessment info
+interface AssessmentInfo {
+  score: number;
+  passed: boolean;
+  status: string;
+}
+
+// Add these interfaces at the top of the file
+interface Job {
+  id: number;
+  title: string;
+  department: string;
+  location: string;
+  status: string;
+  experienceLevel?: string;
+  createdAt?: string;
+  // Add other fields as needed
+}
+
+interface Application {
+  id: number;
+  jobId: number;
+  status: string;
+  appliedAt: string;
+  updatedAt?: string;
+  candidate: any; // You may want to type this more strictly
+  // Add other fields as needed
+}
 
 const PIPELINE_STAGES = [
   { key: "applied", label: "Applied", icon: FileText, color: "blue" },
@@ -37,6 +66,8 @@ export default function AdminPipeline() {
   const { toast } = useToast();
   const user = getCurrentUser();
   const [selectedJobId, setSelectedJobId] = useState<string>("");
+  const [assessmentFilter, setAssessmentFilter] = useState<string>("");
+  const [assessmentData, setAssessmentData] = useState<Record<number, AssessmentInfo>>({}); // candidateId -> info
 
   console.log("Current user:", user); // Debug log
   console.log("User role:", user?.role); // Debug log
@@ -53,16 +84,39 @@ export default function AdminPipeline() {
     return <div>Access denied. Admin role required.</div>;
   }
 
-  const { data: jobs, error: jobsError } = useQuery({
+  const { data: jobs, error: jobsError } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
     retry: false,
   });
 
-  const { data: applications, refetch: refetchApplications, error: applicationsError } = useQuery({
+  const { data: applications, refetch: refetchApplications, error: applicationsError } = useQuery<Application[]>({
     queryKey: [`/api/admin/applications/${selectedJobId}`],
     enabled: !!selectedJobId,
     retry: false,
   });
+
+  useEffect(() => {
+    // Fetch assessment results for all candidates (example, you may need to adjust API call)
+    async function fetchAssessments() {
+      // Suppose you have a list of candidateIds
+      const candidateIds = applications?.map((c: any) => c.candidate.id);
+      const results: Record<number, AssessmentInfo> = {};
+      for (const id of candidateIds || []) {
+        const res = await apiRequest("GET", `/api/admin/candidates/${id}/assessments`);
+        const data = await res.json();
+        // Assume data[0] is latest or best attempt
+        if (data.length > 0) {
+          results[id] = {
+            score: data[0].score,
+            passed: data[0].passed,
+            status: data[0].status || (data[0].passed ? "Passed" : "Failed"),
+          };
+        }
+      }
+      setAssessmentData(results);
+    }
+    fetchAssessments();
+  }, [applications]);
 
   // Log any errors
   if (jobsError) console.error("Jobs error:", jobsError);
@@ -201,6 +255,12 @@ export default function AdminPipeline() {
               <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
                 <Calendar className="h-5 w-5" />
                 <span>Email Templates</span>
+              </a>
+            </Link>
+            <Link href="/admin/assessment-templates">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Assessment Templates</span>
               </a>
             </Link>
           </nav>
