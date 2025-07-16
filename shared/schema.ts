@@ -14,6 +14,8 @@ export const users = pgTable("users", {
 export const candidates = pgTable("candidates", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
+  cnic: text("cnic").notNull().unique(), // Added CNIC field
+  profilePicture: text("profile_picture"), // Added profile picture field
   firstName: text("first_name"),
   lastName: text("last_name"),
   dateOfBirth: text("date_of_birth"),
@@ -116,6 +118,13 @@ export const candidateReviews = pgTable("candidate_reviews", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const skills = pgTable("skills", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  name: text("name").notNull(),
+  expertiseLevel: integer("expertise_level").notNull(), // 1 (beginner) to 5 (expert)
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one }) => ({
   candidate: one(candidates, {
@@ -132,6 +141,7 @@ export const candidatesRelations = relations(candidates, ({ one, many }) => ({
   education: many(education),
   experience: many(experience),
   applications: many(applications),
+  skills: many(skills), // Add skills relation
 }));
 
 export const educationRelations = relations(education, ({ one }) => ({
@@ -189,6 +199,13 @@ export const candidateReviewsRelations = relations(candidateReviews, ({ one }) =
   }),
 }));
 
+export const skillsRelations = relations(skills, ({ one }) => ({
+  candidate: one(candidates, {
+    fields: [skills.candidateId],
+    references: [candidates.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -198,7 +215,9 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const insertCandidateSchema = createInsertSchema(candidates).omit({
   id: true,
   createdAt: true,
-  updatedAt: true,
+}).extend({
+  cnic: z.string().length(14, 'CNIC must be exactly 14 digits').regex(/^\d{14}$/, 'CNIC must be 14 digits'),
+  profilePicture: z.string().optional(),
 });
 
 export const insertEducationSchema = createInsertSchema(education).omit({
@@ -242,6 +261,10 @@ export const insertCandidateReviewSchema = createInsertSchema(candidateReviews).
   updatedAt: true,
 });
 
+export const insertSkillSchema = createInsertSchema(skills).omit({
+  id: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -263,3 +286,5 @@ export type CandidateNote = typeof candidateNotes.$inferSelect;
 export type InsertCandidateNote = z.infer<typeof insertCandidateNoteSchema>;
 export type CandidateReview = typeof candidateReviews.$inferSelect;
 export type InsertCandidateReview = z.infer<typeof insertCandidateReviewSchema>;
+export type Skill = typeof skills.$inferSelect;
+export type InsertSkill = z.infer<typeof insertSkillSchema>;

@@ -24,6 +24,7 @@ import {
   Building,
   Save
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/NASTPLogo.png";
 
 function isProfileComplete(profile: any) {
@@ -41,7 +42,7 @@ function isProfileComplete(profile: any) {
   );
 }
 
-function ProfileCard({ profile, educationList, experienceList, onEdit }: any) {
+function ProfileCard({ profile, educationList, experienceList, skills, onEdit }: any) {
   return (
     <Card className="mb-6">
       <CardHeader>
@@ -51,8 +52,17 @@ function ProfileCard({ profile, educationList, experienceList, onEdit }: any) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        <div className="flex items-center mb-4">
+          {profile.profilePicture ? (
+            <img src={profile.profilePicture} alt="Profile" className="h-20 w-20 rounded-full object-cover border mr-4" />
+          ) : (
+            <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 mr-4">No Image</div>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div>
+            <div className="font-semibold">CNIC:</div>
+            <div>{profile.cnic}</div>
             <div className="font-semibold">Name:</div>
             <div>{profile.firstName} {profile.lastName}</div>
             <div className="font-semibold mt-2">Date of Birth:</div>
@@ -88,6 +98,16 @@ function ProfileCard({ profile, educationList, experienceList, onEdit }: any) {
             <a href={profile.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View Resume</a>
           ) : <span className="italic text-gray-400">Not uploaded</span>}
         </div>
+        <div className="mb-4">
+          <div className="font-semibold mb-1">Skills:</div>
+          {skills && skills.length > 0 ? skills.map((skill: any, i: number) => (
+            <div key={i} className="flex items-center space-x-2 mb-1">
+              <span className="w-40">{skill.name}</span>
+              <Slider min={1} max={5} step={1} value={[skill.expertiseLevel]} disabled className="w-32" />
+              <span className="w-20 text-center">{["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]}</span>
+            </div>
+          )) : <span className="italic text-gray-400">No skills added</span>}
+        </div>
         <Button type="button" onClick={onEdit} className="mt-2">Edit Profile</Button>
       </CardContent>
     </Card>
@@ -99,7 +119,9 @@ export default function CandidateProfile() {
   const user = getCurrentUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Add CNIC to profileData state
   const [profileData, setProfileData] = useState({
+    cnic: "",
     firstName: "",
     lastName: "",
     dateOfBirth: "",
@@ -109,7 +131,9 @@ export default function CandidateProfile() {
     city: "",
     province: "",
     postalCode: "",
-    motivationLetter: ""
+    motivationLetter: "",
+    resumeUrl: "",
+    profilePicture: ""
   });
 
   const [educationList, setEducationList] = useState([
@@ -135,6 +159,50 @@ export default function CandidateProfile() {
     }
   ]);
 
+  // Add state for skills
+  const [skills, setSkills] = useState<any[]>([]);
+  // Fetch skills for the candidate
+  const { data: skillsData, refetch: refetchSkills } = useQuery<any[]>({
+    queryKey: ["/api/skills"],
+  });
+  useEffect(() => {
+    if (Array.isArray(skillsData)) setSkills(skillsData);
+  }, [skillsData]);
+  // Add mutations for skills
+  const createSkillMutation = useMutation({
+    mutationFn: async (skill: { name: string; expertiseLevel: number }) => {
+      const response = await apiRequest("POST", "/api/skills", skill);
+      return response.json();
+    },
+    onSuccess: () => refetchSkills(),
+  });
+  const updateSkillMutation = useMutation({
+    mutationFn: async ({ id, ...skill }: { id: number; name: string; expertiseLevel: number }) => {
+      const response = await apiRequest("PUT", `/api/skills/${id}`, skill);
+      return response.json();
+    },
+    onSuccess: () => refetchSkills(),
+  });
+  const deleteSkillMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/skills/${id}`, {});
+    },
+    onSuccess: () => refetchSkills(),
+  });
+  // Add handlers for skill form
+  const [newSkill, setNewSkill] = useState<{ name: string; expertiseLevel: number }>({ name: "", expertiseLevel: 3 });
+  const handleAddSkill = () => {
+    if (!newSkill.name) return;
+    createSkillMutation.mutate(newSkill);
+    setNewSkill({ name: "", expertiseLevel: 3 });
+  };
+  const handleUpdateSkill = (id: number, updated: { name: string; expertiseLevel: number }) => {
+    updateSkillMutation.mutate({ id, ...updated });
+  };
+  const handleDeleteSkill = (id: number) => {
+    deleteSkillMutation.mutate(id);
+  };
+
   const [isEditing, setIsEditing] = useState(true);
   const [error, setError] = useState("");
 
@@ -145,6 +213,7 @@ export default function CandidateProfile() {
   useEffect(() => {
     if (profile) {
       setProfileData({
+        cnic: profile.cnic || "",
         firstName: profile.firstName || "",
         lastName: profile.lastName || "",
         dateOfBirth: profile.dateOfBirth || "",
@@ -154,7 +223,9 @@ export default function CandidateProfile() {
         city: profile.city || "",
         province: profile.province || "",
         postalCode: profile.postalCode || "",
-        motivationLetter: profile.motivationLetter || ""
+        motivationLetter: profile.motivationLetter || "",
+        resumeUrl: profile.resumeUrl || "",
+        profilePicture: profile.profilePicture || ""
       });
       setEducationList(profile.education || []);
       setExperienceList(profile.experience || []);
@@ -256,15 +327,57 @@ export default function CandidateProfile() {
     },
   });
 
+  // Add profile picture upload mutation
+  const uploadProfilePictureMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch("/api/upload-profile-picture", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        },
+        body: formData
+      });
+      if (!response.ok) throw new Error("Upload failed");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: "Profile picture uploaded successfully",
+      });
+      setProfileData(prev => ({ ...prev, profilePicture: data.profilePicture }));
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to upload profile picture",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Add CNIC validation to handleProfileSubmit
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!/^\d{14}$/.test(profileData.cnic)) {
+      setError("CNIC must be exactly 14 digits");
+      return;
+    }
     if (!isProfileComplete({ ...profileData, email: user?.email })) {
       setError("Please fill all required fields to save your profile.");
       return;
     }
     setError("");
-    await updateProfileMutation.mutateAsync(profileData);
-    setIsEditing(false);
+    try {
+      await updateProfileMutation.mutateAsync(profileData);
+      setIsEditing(false);
+    } catch (err: any) {
+      if (err?.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError("Failed to update profile");
+      }
+    }
   };
 
   const handleEducationSubmit = async (education: any, index: number) => {
@@ -332,6 +445,15 @@ export default function CandidateProfile() {
       const formData = new FormData();
       formData.append("resume", file);
       uploadResumeMutation.mutate(formData);
+    }
+  };
+
+  const handleProfilePictureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const formData = new FormData();
+      formData.append("profilePicture", file);
+      uploadProfilePictureMutation.mutate(formData);
     }
   };
 
@@ -411,6 +533,7 @@ export default function CandidateProfile() {
               profile={{ ...profileData, email: user?.email, resumeUrl: profile?.resumeUrl }} 
               educationList={educationList} 
               experienceList={experienceList} 
+              skills={skills}
               onEdit={() => setIsEditing(true)} 
             />
           </main>
@@ -484,10 +607,43 @@ export default function CandidateProfile() {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <User className="h-5 w-5" />
+                  <span>Profile Picture</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-4">
+                  {profileData.profilePicture ? (
+                    <img src={profileData.profilePicture} alt="Profile" className="h-20 w-20 rounded-full object-cover border" />
+                  ) : (
+                    <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">No Image</div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg, image/jpg"
+                    onChange={handleProfilePictureUpload}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <User className="h-5 w-5" />
                   <span>Personal Information</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label htmlFor="cnic">CNIC</Label>
+                  <Input
+                    id="cnic"
+                    value={profileData.cnic}
+                    onChange={(e) => setProfileData({ ...profileData, cnic: e.target.value.replace(/[^\d]/g, "") })}
+                    placeholder="12345678901234"
+                    maxLength={14}
+                    minLength={14}
+                  />
+                </div>
                 <div>
                   <Label htmlFor="firstName">First Name</Label>
                   <Input
@@ -871,6 +1027,56 @@ export default function CandidateProfile() {
                     onChange={(e) => setProfileData({ ...profileData, motivationLetter: e.target.value })}
                     placeholder="Write a brief motivation letter..."
                   />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Skills */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <span>Skills</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {skills.map((skill, idx) => (
+                    <div key={skill.id} className="flex items-center space-x-4">
+                      <input
+                        className="border rounded px-2 py-1 w-40"
+                        value={skill.name}
+                        onChange={e => handleUpdateSkill(skill.id, { name: e.target.value, expertiseLevel: skill.expertiseLevel })}
+                      />
+                      <Slider
+                        min={1}
+                        max={5}
+                        step={1}
+                        value={[skill.expertiseLevel]}
+                        onValueChange={([val]) => handleUpdateSkill(skill.id, { name: skill.name, expertiseLevel: val })}
+                        className="w-32"
+                      />
+                      <span className="w-20 text-center">{["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]}</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteSkill(skill.id)} className="text-red-600">Delete</Button>
+                    </div>
+                  ))}
+                  <div className="flex items-center space-x-4 mt-2">
+                    <input
+                      className="border rounded px-2 py-1 w-40"
+                      value={newSkill.name}
+                      onChange={e => setNewSkill({ ...newSkill, name: e.target.value })}
+                      placeholder="Skill name"
+                    />
+                    <Slider
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={[newSkill.expertiseLevel]}
+                      onValueChange={([val]) => setNewSkill({ ...newSkill, expertiseLevel: val })}
+                      className="w-32"
+                    />
+                    <span className="w-20 text-center">{["Beginner", "", "Intermediate", "", "Expert"][newSkill.expertiseLevel-1]}</span>
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddSkill}>Add Skill</Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

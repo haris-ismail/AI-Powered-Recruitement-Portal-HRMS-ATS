@@ -1,11 +1,12 @@
 import { 
-  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, candidateNotes, candidateReviews,
+  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, candidateNotes, candidateReviews, skills,
   type User, type InsertUser, type Candidate, type InsertCandidate,
   type Education, type InsertEducation, type Experience, type InsertExperience,
   type JobTemplate, type InsertJobTemplate, type Job, type InsertJob,
   type Application, type InsertApplication, type EmailTemplate, type InsertEmailTemplate,
   type CandidateNote, type InsertCandidateNote,
-  type CandidateReview, type InsertCandidateReview
+  type CandidateReview, type InsertCandidateReview,
+  type Skill, type InsertSkill
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -71,6 +72,12 @@ export interface IStorage {
   createCandidateReview(review: InsertCandidateReview): Promise<CandidateReview>;
   updateCandidateReview(id: number, review: Partial<InsertCandidateReview>): Promise<CandidateReview>;
   deleteCandidateReview(id: number): Promise<void>;
+
+  getCandidateByCnic(cnic: string): Promise<Candidate | undefined>;
+  getCandidateSkills(candidateId: number): Promise<Skill[]>;
+  createSkill(skill: InsertSkill): Promise<Skill>;
+  updateSkill(id: number, skill: Partial<InsertSkill>): Promise<Skill>;
+  deleteSkill(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -300,6 +307,26 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCandidateReview(id: number): Promise<void> {
     await db.delete(candidateReviews).where(eq(candidateReviews.id, id));
+  }
+
+  async getCandidateByCnic(cnic: string): Promise<Candidate | undefined> {
+    const [candidate] = await db.select().from(candidates).where(eq(candidates.cnic, cnic));
+    return candidate || undefined;
+  }
+
+  async getCandidateSkills(candidateId: number): Promise<Skill[]> {
+    return await db.select().from(skills).where(eq(skills.candidateId, candidateId));
+  }
+  async createSkill(skill: InsertSkill): Promise<Skill> {
+    const [newSkill] = await db.insert(skills).values(skill).returning();
+    return newSkill;
+  }
+  async updateSkill(id: number, skill: Partial<InsertSkill>): Promise<Skill> {
+    const [updated] = await db.update(skills).set(skill).where(eq(skills.id, id)).returning();
+    return updated;
+  }
+  async deleteSkill(id: number): Promise<void> {
+    await db.delete(skills).where(eq(skills.id, id));
   }
 }
 

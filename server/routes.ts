@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
-import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema } from "@shared/schema";
+import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema } from "@shared/schema";
 import { z } from "zod";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
@@ -33,6 +33,32 @@ const upload = multer({
       return cb(null, true);
     } else {
       cb(new Error('Only PDF, DOC, and DOCX files are allowed'));
+    }
+  }
+});
+
+// Multer configuration for profile picture uploads
+const storage_picture = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadPicture = multer({
+  storage: storage_picture,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpg|jpeg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only JPG, JPEG, and PNG files are allowed'));
     }
   }
 });
@@ -125,9 +151,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: 'candidate'
       });
 
+      // Check CNIC uniqueness
+      const cnic = req.body.cnic;
+      if (!cnic) {
+        return res.status(400).json({ message: 'CNIC is required' });
+      }
+      const existingCnic = await storage.getCandidateByCnic(cnic);
+      if (existingCnic) {
+        return res.status(400).json({ message: 'CNIC already exists' });
+      }
+
       // Create candidate profile
       await storage.createCandidate({
-        userId: user.id
+        userId: user.id,
+        cnic
       });
 
       const token = jwt.sign(
@@ -181,6 +218,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const profileData = insertCandidateSchema.partial().parse(req.body);
+      // If CNIC is being updated, check uniqueness
+      if (profileData.cnic && profileData.cnic !== candidate.cnic) {
+        const existingCnic = await storage.getCandidateByCnic(profileData.cnic);
+        if (existingCnic) {
+          return res.status(400).json({ message: 'CNIC already exists' });
+        }
+      }
       const updatedCandidate = await storage.updateCandidate(candidate.id, profileData);
 
       res.json(updatedCandidate);
@@ -274,6 +318,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ resumeUrl });
     } catch (error) {
       res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // Profile picture upload endpoint
+  app.post('/api/upload-profile-picture', authenticateToken, uploadPicture.single('profilePicture'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Profile not found' });
+      }
+      const profilePictureUrl = `/uploads/${req.file.filename}`;
+      await storage.updateCandidate(candidate.id, { profilePicture: profilePictureUrl });
+      res.json({ profilePicture: profilePictureUrl });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to upload profile picture' });
     }
   });
 
@@ -538,6 +600,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const reviewId = parseInt(req.params.reviewId);
       await storage.deleteCandidateReview(reviewId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // Skills routes
+  app.get('/api/skills', authenticateToken, async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Profile not found' });
+      }
+      const skills = await storage.getCandidateSkills(candidate.id);
+      res.json(skills);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.post('/api/skills', authenticateToken, async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Profile not found' });
+      }
+      const skillData = insertSkillSchema.parse({ ...req.body, candidateId: candidate.id });
+      const skill = await storage.createSkill(skillData);
+      res.status(201).json(skill);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.put('/api/skills/:id', authenticateToken, async (req: any, res) => {
+    try {
+      const skillData = insertSkillSchema.partial().parse(req.body);
+      const skill = await storage.updateSkill(parseInt(req.params.id), skillData);
+      res.json(skill);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.delete('/api/skills/:id', authenticateToken, async (req: any, res) => {
+    try {
+      await storage.deleteSkill(parseInt(req.params.id));
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: 'Server error' });
