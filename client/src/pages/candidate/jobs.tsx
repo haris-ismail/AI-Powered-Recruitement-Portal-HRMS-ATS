@@ -24,6 +24,25 @@ import {
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
 
+// Add these interfaces at the top of the file
+interface Job {
+  id: number;
+  title: string;
+  department: string;
+  location: string;
+  status: string;
+  experienceLevel?: string;
+  description?: string;
+  createdAt?: string;
+  // Add other fields as needed
+}
+
+interface Profile {
+  firstName: string;
+  lastName: string;
+  // Add other fields as needed
+}
+
 export default function CandidateJobs() {
   const { toast } = useToast();
   const user = getCurrentUser();
@@ -31,12 +50,13 @@ export default function CandidateJobs() {
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [selectedExperience, setSelectedExperience] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [applyingJobId, setApplyingJobId] = useState<number | null>(null);
 
-  const { data: jobs, isLoading } = useQuery({
+  const { data: jobs, isLoading } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
   });
 
-  const { data: profile } = useQuery({
+  const { data: profile } = useQuery<Profile>({
     queryKey: ["/api/profile"],
   });
 
@@ -62,17 +82,19 @@ export default function CandidateJobs() {
   });
 
   const handleApply = async (jobId: number) => {
-    // Check if profile is complete
-    if (!profile?.firstName || !profile?.lastName) {
-      toast({
-        title: "Profile Incomplete",
-        description: "Please complete your profile before applying for jobs",
-        variant: "destructive",
-      });
-      return;
+    setApplyingJobId(jobId);
+    // Check if job has assessment
+    const res = await fetch(`/api/jobs/${jobId}/assessments`);
+    const data = await res.json();
+    if (data && data.length > 0) {
+      // Redirect to assessment page (assume first template for now)
+      const templateId = data[0].templateId;
+      window.location.href = `/candidate/take-assessment?jobId=${jobId}&templateId=${templateId}`;
+    } else {
+      // No assessment, proceed to apply
+      await applyForJobMutation.mutateAsync(jobId);
     }
-
-    await applyForJobMutation.mutateAsync(jobId);
+    setApplyingJobId(null);
   };
 
   const handleLogout = () => {
@@ -298,15 +320,15 @@ export default function CandidateJobs() {
                                 </div>
                                 <div className="flex items-center text-sm text-gray-500">
                                   <Calendar className="h-4 w-4 mr-1" />
-                                  <span>Posted on {new Date(selectedJob.createdAt).toLocaleDateString()}</span>
+                                  <span>Posted on {new Date(selectedJob.createdAt || '').toLocaleDateString()}</span>
                                 </div>
                                 <div className="pt-4 border-t">
                                   <Button 
                                     onClick={() => handleApply(selectedJob.id)}
-                                    disabled={applyForJobMutation.isPending}
+                                    disabled={applyForJobMutation.isPending || applyingJobId === selectedJob.id}
                                     className="w-full"
                                   >
-                                    {applyForJobMutation.isPending ? "Applying..." : "Apply Now"}
+                                    {applyForJobMutation.isPending || applyingJobId === selectedJob.id ? "Applying..." : "Apply Now"}
                                   </Button>
                                 </div>
                               </div>
@@ -315,9 +337,9 @@ export default function CandidateJobs() {
                         </Dialog>
                         <Button 
                           onClick={() => handleApply(job.id)}
-                          disabled={applyForJobMutation.isPending}
+                          disabled={applyForJobMutation.isPending || applyingJobId === job.id}
                         >
-                          {applyForJobMutation.isPending ? "Applying..." : "Apply Now"}
+                          {applyForJobMutation.isPending || applyingJobId === job.id ? "Applying..." : "Apply Now"}
                         </Button>
                       </div>
                     </div>

@@ -118,11 +118,76 @@ export const candidateReviews = pgTable("candidate_reviews", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Skills table
 export const skills = pgTable("skills", {
   id: serial("id").primaryKey(),
   candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
   name: text("name").notNull(),
   expertiseLevel: integer("expertise_level").notNull(), // 1 (beginner) to 5 (expert)
+});
+
+// Assessment-related tables
+export const assessmentCategories = pgTable("assessment_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const assessmentTemplates = pgTable("assessment_templates", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  categoryId: integer("category_id").references(() => assessmentCategories.id).notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  passingScore: integer("passing_score").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: integer("created_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const assessmentQuestions = pgTable("assessment_questions", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").references(() => assessmentTemplates.id).notNull(),
+  questionText: text("question_text").notNull(),
+  questionType: text("question_type").notNull(), // mcq_single, mcq_multiple, true_false, short_answer
+  options: json("options"), // JSON array of options
+  correctAnswers: json("correct_answers"), // JSON array of correct answers
+  points: integer("points").notNull(),
+  orderIndex: integer("order_index").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const jobAssessments = pgTable("job_assessments", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  templateId: integer("template_id").references(() => assessmentTemplates.id).notNull(),
+  isRequired: boolean("is_required").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const assessmentAttempts = pgTable("assessment_attempts", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  templateId: integer("template_id").references(() => assessmentTemplates.id).notNull(),
+  jobId: integer("job_id").references(() => jobs.id),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  score: integer("score"),
+  maxScore: integer("max_score"),
+  passed: boolean("passed"),
+  status: text("status").notNull().default("in_progress"), // in_progress, completed, expired
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const assessmentAnswers = pgTable("assessment_answers", {
+  id: serial("id").primaryKey(),
+  attemptId: integer("attempt_id").references(() => assessmentAttempts.id).notNull(),
+  questionId: integer("question_id").references(() => assessmentQuestions.id).notNull(),
+  answerText: json("answer_text"), // JSON to support multiple types of answers
+  isCorrect: boolean("is_correct"),
+  pointsEarned: integer("points_earned"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Relations

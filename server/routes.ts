@@ -497,7 +497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get candidate by ID (for admin email compose, etc.)
-  app.get('/api/candidates/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+  app.get('/api/candidates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const candidate = await storage.getCandidateById(parseInt(req.params.id));
       if (!candidate) {
@@ -516,7 +516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Candidate Notes (Admin only)
-  app.get('/api/candidates/:id/notes', authenticateToken, requireRole('admin'), async (req, res) => {
+  app.get('/api/candidates/:id/notes', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const candidateId = parseInt(req.params.id);
       const notes = await storage.getCandidateNotes(candidateId);
@@ -550,7 +550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/candidates/:id/notes/:noteId', authenticateToken, requireRole('admin'), async (req, res) => {
+  app.delete('/api/candidates/:id/notes/:noteId', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const noteId = parseInt(req.params.noteId);
       await storage.deleteCandidateNote(noteId);
@@ -561,7 +561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Candidate Reviews (Admin/Panel only)
-  app.get('/api/applications/:id/reviews', authenticateToken, requireRole('admin'), async (req, res) => {
+  app.get('/api/applications/:id/reviews', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const applicationId = parseInt(req.params.id);
       const stage = req.query.stage as string | undefined;
@@ -596,7 +596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/applications/:id/reviews/:reviewId', authenticateToken, requireRole('admin'), async (req, res) => {
+  app.delete('/api/applications/:id/reviews/:reviewId', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const reviewId = parseInt(req.params.reviewId);
       await storage.deleteCandidateReview(reviewId);
@@ -606,54 +606,175 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Skills routes
-  app.get('/api/skills', authenticateToken, async (req: any, res) => {
+  // --- Assessment Categories ---
+  app.get('/api/assessment-categories', authenticateToken, async (req: any, res) => {
     try {
-      const candidate = await storage.getCandidate(req.user.id);
-      if (!candidate) {
-        return res.status(404).json({ message: 'Profile not found' });
-      }
-      const skills = await storage.getCandidateSkills(candidate.id);
-      res.json(skills);
+      const categories = await storage.getAssessmentCategories();
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.post('/api/assessment-categories', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const category = await storage.createAssessmentCategory(req.body);
+      res.status(201).json(category);
     } catch (error) {
       res.status(500).json({ message: 'Server error' });
     }
   });
 
-  app.post('/api/skills', authenticateToken, async (req: any, res) => {
+  // --- Assessment Templates ---
+  app.get('/api/assessment-templates', authenticateToken, async (req: any, res) => {
     try {
-      const candidate = await storage.getCandidate(req.user.id);
-      if (!candidate) {
-        return res.status(404).json({ message: 'Profile not found' });
-      }
-      const skillData = insertSkillSchema.parse({ ...req.body, candidateId: candidate.id });
-      const skill = await storage.createSkill(skillData);
-      res.status(201).json(skill);
+      const templates = await storage.getAssessmentTemplates();
+      res.json(templates);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
-      }
       res.status(500).json({ message: 'Server error' });
     }
   });
-
-  app.put('/api/skills/:id', authenticateToken, async (req: any, res) => {
+  app.post('/api/assessment-templates', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
-      const skillData = insertSkillSchema.partial().parse(req.body);
-      const skill = await storage.updateSkill(parseInt(req.params.id), skillData);
-      res.json(skill);
+      const template = await storage.createAssessmentTemplate(req.body);
+      res.status(201).json(template);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
-      }
       res.status(500).json({ message: 'Server error' });
     }
   });
-
-  app.delete('/api/skills/:id', authenticateToken, async (req: any, res) => {
+  app.put('/api/assessment-templates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
-      await storage.deleteSkill(parseInt(req.params.id));
+      const template = await storage.updateAssessmentTemplate(parseInt(req.params.id), req.body);
+      res.json(template);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.delete('/api/assessment-templates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      await storage.deleteAssessmentTemplate(parseInt(req.params.id));
       res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // --- Assessment Questions ---
+  app.get('/api/assessment-templates/:id/questions', authenticateToken, async (req: any, res) => {
+    try {
+      const questions = await storage.getAssessmentQuestions(parseInt(req.params.id));
+      res.json(questions);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.post('/api/assessment-templates/:id/questions', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const question = await storage.createAssessmentQuestion(parseInt(req.params.id), req.body);
+      res.status(201).json(question);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.put('/api/assessment-questions/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const question = await storage.updateAssessmentQuestion(parseInt(req.params.id), req.body);
+      res.json(question);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.delete('/api/assessment-questions/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      await storage.deleteAssessmentQuestion(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // --- Job Assessments ---
+  app.get('/api/jobs/:id/assessments', authenticateToken, async (req: any, res) => {
+    try {
+      const assessments = await storage.getJobAssessments(parseInt(req.params.id));
+      res.json(assessments);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.post('/api/jobs/:id/assessments', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const assessment = await storage.createJobAssessment(parseInt(req.params.id), req.body);
+      res.status(201).json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.delete('/api/jobs/:id/assessments/:assessmentId', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      await storage.deleteJobAssessment(parseInt(req.params.assessmentId));
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // --- Candidate Flow ---
+  app.get('/api/candidate/assessments/pending', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const pending = await storage.getPendingAssessments(req.user.id);
+      res.json(pending);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.get('/api/assessments/:templateId/start', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const result = await storage.startAssessment(parseInt(req.params.templateId), req.user.id, req.query.jobId ? parseInt(req.query.jobId as string) : undefined);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.post('/api/assessments/:attemptId/submit', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const result = await storage.submitAssessment(parseInt(req.params.attemptId), req.body);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.get('/api/assessments/:attemptId/results', authenticateToken, async (req: any, res) => {
+    try {
+      const result = await storage.getAssessmentResults(parseInt(req.params.attemptId));
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // --- Admin View ---
+  app.get('/api/admin/assessments/results', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const results = await storage.getAllAssessmentResults();
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+  app.get('/api/admin/candidates/:candidateId/assessments', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const results = await storage.getCandidateAssessments(parseInt(req.params.candidateId));
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // --- Assessment Analytics ---
+  app.get('/api/admin/assessment-analytics', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const analytics = await storage.getAssessmentAnalytics();
+      res.json(analytics);
     } catch (error) {
       res.status(500).json({ message: 'Server error' });
     }
@@ -665,3 +786,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+```

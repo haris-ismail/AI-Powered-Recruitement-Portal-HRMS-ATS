@@ -10,6 +10,7 @@ import AdminDashboard from "@/pages/admin/dashboard";
 import AdminJobs from "@/pages/admin/jobs";
 import AdminPipeline from "@/pages/admin/pipeline";
 import AdminEmailTemplates from "@/pages/admin/email-templates";
+import AssessmentTemplatesPage from "@/pages/admin/assessment-templates";
 import EmailComposePage from "./pages/admin/email-compose";
 import CandidateProfile from "@/pages/candidate/profile";
 import CandidateJobs from "@/pages/candidate/jobs";
@@ -37,6 +38,11 @@ function Router() {
       <Route path="/admin/email-templates">
         <AuthGuard requiredRole="admin">
           <AdminEmailTemplates />
+        </AuthGuard>
+      </Route>
+      <Route path="/admin/assessment-templates">
+        <AuthGuard requiredRole="admin">
+          <AssessmentTemplatesPage />
         </AuthGuard>
       </Route>
       <Route path="/admin/email/compose">

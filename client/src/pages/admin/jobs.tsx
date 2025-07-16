@@ -28,6 +28,45 @@ import {
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
 
+// Add these interfaces at the top of the file
+interface Job {
+  id: number;
+  title: string;
+  department: string;
+  location: string;
+  status: string;
+  experienceLevel?: string;
+  createdAt?: string;
+  // Add other fields as needed
+}
+
+interface JobTemplate {
+  id: number;
+  title: string;
+  department: string;
+  experienceLevel?: string;
+  location: string;
+  salaryMin?: number;
+  field?: string;
+  requiredSkills?: string;
+  description?: string;
+  createdAt?: string;
+  // Add other fields as needed
+}
+
+// Add AssessmentTemplate interface at the top
+interface AssessmentTemplate {
+  id: number;
+  title: string;
+  description?: string;
+  categoryId: number;
+  durationMinutes: number;
+  passingScore: number;
+  isActive: boolean;
+  createdBy: number;
+  createdAt?: string;
+}
+
 export default function AdminJobs() {
   const { toast } = useToast();
   const user = getCurrentUser();
@@ -45,15 +84,21 @@ export default function AdminJobs() {
     field: "",
     requiredSkills: "",
     description: "",
-    saveAsTemplate: false
+    saveAsTemplate: false,
+    assessmentTemplateId: null as number | null // <-- new field
   });
 
-  const { data: jobs, isLoading: jobsLoading } = useQuery({
+  const { data: jobs, isLoading: jobsLoading } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
   });
 
-  const { data: templates } = useQuery({
+  const { data: templates } = useQuery<JobTemplate[]>({
     queryKey: ["/api/job-templates"],
+  });
+
+  // Fetch assessment templates
+  const { data: assessmentTemplates } = useQuery<AssessmentTemplate[]>({
+    queryKey: ["/api/assessment-templates"],
   });
 
   const createJobMutation = useMutation({
@@ -77,7 +122,8 @@ export default function AdminJobs() {
         field: "",
         requiredSkills: "",
         description: "",
-        saveAsTemplate: false
+        saveAsTemplate: false,
+        assessmentTemplateId: null
       });
     },
     onError: (error: any) => {
@@ -142,7 +188,8 @@ export default function AdminJobs() {
         field: "",
         requiredSkills: "",
         description: "",
-        saveAsTemplate: false
+        saveAsTemplate: false,
+        assessmentTemplateId: null
       });
     },
     onError: (error: any) => {
@@ -170,7 +217,7 @@ export default function AdminJobs() {
       });
     }
 
-    const jobData = {
+    const jobData: any = {
       title: jobFormData.title,
       department: jobFormData.department,
       experienceLevel: jobFormData.experienceLevel,
@@ -180,6 +227,9 @@ export default function AdminJobs() {
       requiredSkills: jobFormData.requiredSkills,
       description: jobFormData.description,
     };
+    if (jobFormData.assessmentTemplateId) {
+      jobData.assessmentTemplateId = jobFormData.assessmentTemplateId;
+    }
 
     if (editingJob) {
       await updateJobMutation.mutateAsync(jobData);
@@ -203,7 +253,8 @@ export default function AdminJobs() {
       field: template.field,
       requiredSkills: template.requiredSkills,
       description: template.description,
-      saveAsTemplate: false
+      saveAsTemplate: false,
+      assessmentTemplateId: null
     });
     setShowTemplates(false);
     setShowJobForm(true);
@@ -220,7 +271,8 @@ export default function AdminJobs() {
       field: job.field,
       requiredSkills: job.requiredSkills,
       description: job.description,
-      saveAsTemplate: false
+      saveAsTemplate: false,
+      assessmentTemplateId: job.assessmentTemplateId || null
     });
     setShowJobForm(true);
   };
@@ -290,6 +342,12 @@ export default function AdminJobs() {
                 <span>Email Templates</span>
               </a>
             </Link>
+            <Link href="/admin/assessment-templates">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Assessment Templates</span>
+              </a>
+            </Link>
           </nav>
         </aside>
 
@@ -316,7 +374,8 @@ export default function AdminJobs() {
                   field: "",
                   requiredSkills: "",
                   description: "",
-                  saveAsTemplate: false
+                  saveAsTemplate: false,
+                  assessmentTemplateId: null
                 });
                 setShowJobForm(!showJobForm);
               }}>
@@ -432,6 +491,24 @@ export default function AdminJobs() {
                       placeholder="Describe the role, responsibilities, and requirements..."
                       required
                     />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="assessmentTemplateId">Assessment Template (optional)</Label>
+                    <Select
+                      value={jobFormData.assessmentTemplateId !== null ? String(jobFormData.assessmentTemplateId) : "none"}
+                      onValueChange={(value) => setJobFormData({ ...jobFormData, assessmentTemplateId: value === "none" ? null : Number(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="No assessment required" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No assessment required</SelectItem>
+                        {assessmentTemplates?.map((tpl) => (
+                          <SelectItem key={tpl.id} value={String(tpl.id)}>{tpl.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="flex items-center justify-between">

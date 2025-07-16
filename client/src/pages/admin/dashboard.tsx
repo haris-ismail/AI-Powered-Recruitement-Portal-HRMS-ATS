@@ -13,23 +13,52 @@ import {
   Clock, 
   Bell,
   LogOut,
-  ChevronUp
+  ChevronUp,
+  FileText
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
+
+// Add these interfaces at the top of the file
+interface Application {
+  id: number;
+  jobId: number;
+  status: string;
+  appliedAt: string;
+  updatedAt?: string;
+  // Add other fields as needed
+}
+
+interface Job {
+  id: number;
+  title: string;
+  department: string;
+  location: string;
+  status: string;
+  experienceLevel?: string;
+  createdAt?: string;
+  // Add other fields as needed
+}
+
+interface Stats {
+  activeJobs: number;
+  totalApplications: number;
+  interviews: number;
+  timeToHire: number;
+}
 
 export default function AdminDashboard() {
   const [, navigate] = useLocation();
   const user = getCurrentUser();
 
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<Stats>({
     queryKey: ["/api/admin/stats"],
   });
 
-  const { data: applications } = useQuery({
+  const { data: applications } = useQuery<Application[]>({
     queryKey: ["/api/applications"],
   });
 
-  const { data: jobs } = useQuery({
+  const { data: jobs } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
   });
 
@@ -93,6 +122,12 @@ export default function AdminDashboard() {
               <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
                 <Calendar className="h-5 w-5" />
                 <span>Email Templates</span>
+              </a>
+            </Link>
+            <Link href="/admin/assessment-templates">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Assessment Templates</span>
               </a>
             </Link>
           </nav>

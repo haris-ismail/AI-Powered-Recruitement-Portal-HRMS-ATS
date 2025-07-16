@@ -20,6 +20,42 @@ import {
   GraduationCap
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
+import React, { useEffect, useState } from "react";
+
+// Add these types for assessment info
+interface AssessmentAttempt {
+  status: string;
+  score?: number;
+  maxScore?: number;
+  progress?: number; // 0-1
+}
+
+// Add these interfaces at the top of the file
+interface Application {
+  id: number;
+  jobId: number;
+  status: string;
+  appliedAt: string;
+  updatedAt?: string;
+  // Add other fields as needed
+}
+
+interface Job {
+  id: number;
+  title: string;
+  department: string;
+  location: string;
+  status: string;
+  experienceLevel?: string;
+  createdAt?: string;
+  // Add other fields as needed
+}
+
+interface Profile {
+  firstName: string;
+  lastName: string;
+  // Add other fields as needed
+}
 
 const STATUS_CONFIG = {
   applied: {
@@ -71,17 +107,38 @@ const PIPELINE_STAGES = [
 export default function CandidateApplications() {
   const user = getCurrentUser();
 
-  const { data: applications, isLoading } = useQuery({
+  const { data: applications, isLoading } = useQuery<Application[]>({
     queryKey: ["/api/applications"],
   });
 
-  const { data: jobs } = useQuery({
+  const { data: jobs } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
   });
 
-  const { data: profile } = useQuery({
+  const { data: profile } = useQuery<Profile>({
     queryKey: ["/api/profile"],
   });
+
+  const [assessmentAttempts, setAssessmentAttempts] = useState<Record<number, AssessmentAttempt>>({}); // applicationId -> info
+
+  useEffect(() => {
+    // Fetch assessment attempts for this candidate
+    async function fetchAttempts() {
+      // Suppose you have a list of applicationIds
+      const applicationIds = applications?.map((a: any) => a.id) || [];
+      const results: Record<number, AssessmentAttempt> = {};
+      for (const id of applicationIds) {
+        // You may need to adjust this API call to get attempt by application
+        const res = await fetch(`/api/applications/${id}/assessment-attempt`);
+        if (res.ok) {
+          const data = await res.json();
+          results[id] = data;
+        }
+      }
+      setAssessmentAttempts(results);
+    }
+    fetchAttempts();
+  }, [applications]);
 
   const handleLogout = () => {
     removeToken();
@@ -316,6 +373,20 @@ export default function CandidateApplications() {
                               </p>
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {assessmentAttempts[application.id] && (
+                        <div>
+                          <div>Status: {assessmentAttempts[application.id].status}</div>
+                          {assessmentAttempts[application.id].status === "completed" && (
+                            <div>Score: {assessmentAttempts[application.id].score} / {assessmentAttempts[application.id].maxScore}</div>
+                          )}
+                          {assessmentAttempts[application.id].status === "in_progress" && (
+                            <div>
+                              <div>Progress: <progress value={assessmentAttempts[application.id].progress || 0} max={1}></progress></div>
+                            </div>
+                          )}
                         </div>
                       )}
 
