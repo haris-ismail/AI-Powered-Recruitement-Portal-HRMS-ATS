@@ -77,6 +77,7 @@ export const jobs = pgTable("jobs", {
   description: text("description").notNull(),
   status: text("status").notNull().default("active"), // "active", "closed"
   createdAt: timestamp("created_at").defaultNow(),
+  assessmentTemplateId: integer("assessment_template_id").references(() => assessmentTemplates.id),
 });
 
 export const applications = pgTable("applications", {

@@ -362,6 +362,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/jobs/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const jobData = insertJobSchema.partial().parse(req.body);
+      const job = await storage.updateJob(parseInt(req.params.id), jobData);
+      res.json(job);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
   // Job templates
   app.get('/api/job-templates', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
@@ -786,4 +799,3 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
-```
