@@ -1,27 +1,23 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { setToken, getCurrentUser } from "@/lib/auth";
-import { Shield, User } from "lucide-react";
 import "./login-custom.css";
 import logo from "@/assets/NASTPLogo.png";
 import adminIcon from "@/assets/admin-icon.svg";
 import candidateIcon from "@/assets/candidate-icon.svg";
 import bgImg from "@/assets/background.jpg";
+import pagelogo from "@/assets/logo.png";
+
 
 export default function Login() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("admin");
+  const [showSignup, setShowSignup] = useState(false);
 
-  // Check if already logged in and redirect accordingly
   const currentUser = getCurrentUser();
   if (currentUser) {
     if (currentUser.role === "admin") {
@@ -71,6 +67,7 @@ export default function Login() {
     }
   };
 
+  // Registration handler (from signup.tsx, with password length check)
   const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
@@ -90,6 +87,16 @@ export default function Login() {
       return;
     }
 
+    if (password.length < 6) {
+      toast({
+        title: "Registration failed",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await apiRequest("POST", "/api/auth/register", {
         email,
@@ -101,7 +108,7 @@ export default function Login() {
 
       toast({
         title: "Registration successful",
-        description: "Welcome to HRConnect!",
+        description: "Welcome to NASTP Recruitment Portal!",
       });
 
       navigate("/candidate");
@@ -118,6 +125,7 @@ export default function Login() {
 
   return (
     <div className="login-wrapper" style={{ backgroundImage: `url(${bgImg})` }}>
+      <img src={pagelogo} alt="Page Logo" className="page-logo" />
       <div className="info-section">
         <h1 className="info-title">NASTP Recruitment Portal</h1>
         <h2 className="info-subtitle">Job Portal & HRMS Platform</h2>
@@ -130,30 +138,79 @@ export default function Login() {
       </div>
       <div className="login-container">
         <div className="login-box">
-          <img src={logo} alt="Form Logo" className="form-logo" />
-          <div className="toggle-switch">
-            <div className="toggle-track">
-              <div className={`toggle-slider ${activeTab === 'admin' ? 'left' : 'right'}`} />
-              <button
-                type="button"
-                className={`toggle-btn ${activeTab === 'admin' ? 'active' : ''}`}
-                onClick={() => setActiveTab('admin')}
-              >
-                <img src={adminIcon} alt="Admin Icon" className="icon" />
-                Admin
-              </button>
-              <button
-                type="button"
-                className={`toggle-btn ${activeTab === 'candidate' ? 'active' : ''}`}
-                onClick={() => setActiveTab('candidate')}
-              >
-                <img src={candidateIcon} alt="Candidate Icon" className="icon" />
-                Candidate
-              </button>
-            </div>
+          <img src={logo} alt="Form Logo" className={`form-logo${showSignup ? ' signup-logo' : ''}`} />
+          <div className="toggle-or-email-area">
+            {!showSignup ? (
+              <div className="toggle-switch">
+                <div className="toggle-track">
+                  <div className={`toggle-slider ${activeTab === 'admin' ? 'left' : 'right'}`} />
+                  <button
+                    type="button"
+                    className={`toggle-btn ${activeTab === 'admin' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('admin')}
+                  >
+                    <img src={adminIcon} alt="Admin Icon" className="icon" />
+                    Admin
+                  </button>
+                  <button
+                    type="button"
+                    className={`toggle-btn ${activeTab === 'candidate' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('candidate')}
+                  >
+                    <img src={candidateIcon} alt="Candidate Icon" className="icon" />
+                    Candidate
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                <label htmlFor="signup-email" className="form-label" style={{ width: '100%' }}>Email Address</label>
+                <input
+                  id="signup-email"
+                  name="email"
+                  type="email"
+                  placeholder="your.email@example.com"
+                  required
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            )}
           </div>
           <div className="form-wrapper">
-            {activeTab === 'admin' ? (
+            {showSignup ? (
+              <form onSubmit={handleRegister} className="form">
+                <div className="form-fields">
+                  <label htmlFor="signup-password" className="form-label">Password</label>
+                  <input
+                    id="signup-password"
+                    name="password"
+                    type="password"
+                    placeholder="••••••••"
+                    required
+                    className="form-input"
+                  />
+                  <label htmlFor="signup-confirm-password" className="form-label">Confirm Password</label>
+                  <input
+                    id="signup-confirm-password"
+                    name="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    required
+                    className="form-input"
+                  />
+                  <div className="forgot-password" style={{ visibility: 'hidden' }}>
+                    <a>Spacer</a>
+                  </div>
+                </div>
+                <button type="submit" className="login-btn" disabled={loading}>
+                  {loading ? "Creating Account..." : "Create Account"}
+                </button>
+                <div className="signup-link">
+                  <a onClick={() => setShowSignup(false)} style={{ cursor: "pointer" }}>Already have an account? Sign in</a>
+                </div>
+              </form>
+            ) : activeTab === 'admin' ? (
               <form onSubmit={handleLogin} className="form">
                 <div className="form-fields">
                   <label htmlFor="admin-email" className="form-label">Email Address</label>
@@ -170,13 +227,15 @@ export default function Login() {
                     id="admin-password"
                     name="password"
                     type="password"
-                    defaultValue="12345678"
                     required
                     className="form-input"
                   />
+                  <div className="forgot-password" style={{ visibility: "hidden" }}>
+                    <a>Spacer</a>
+                  </div>
                 </div>
                 <button type="submit" className="login-btn" disabled={loading}>
-                  {loading ? "Signing in..." : "Sign In as Admin"}
+                  {loading ? "Signing in..." : "Sign In"}
                 </button>
               </form>
             ) : (
@@ -208,7 +267,7 @@ export default function Login() {
                   {loading ? "Signing in..." : "Sign In"}
                 </button>
                 <div className="signup-link">
-                  <a onClick={() => navigate("/signup")} style={{ cursor: "pointer" }}>Don’t have an account? Sign up</a>
+                  <a onClick={() => setShowSignup(true)} style={{ cursor: "pointer" }}>Don’t have an account? Sign up</a>
                 </div>
               </form>
             )}

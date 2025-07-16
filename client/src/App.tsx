@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
-import Signup from "@/pages/signup";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminJobs from "@/pages/admin/jobs";
 import AdminPipeline from "@/pages/admin/pipeline";
@@ -22,7 +21,6 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      <Route path="/signup" component={Signup} />
       
       {/* Admin Routes */}
       <Route path="/admin/jobs">
