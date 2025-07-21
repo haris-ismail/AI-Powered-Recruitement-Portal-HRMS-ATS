@@ -185,6 +185,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
+      // Log the error for debugging
+      console.error('Registration error:', error);
+      // Return more detailed error info in non-production
+      if (process.env.NODE_ENV !== 'production') {
+        return res.status(500).json({ message: 'Server error', error: error?.message, stack: error?.stack });
+      }
       res.status(500).json({ message: 'Server error' });
     }
   });
@@ -431,6 +437,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const candidate = await storage.getCandidate(req.user.id);
       if (!candidate) {
         return res.status(404).json({ message: 'Profile not found' });
+      }
+
+      // Prevent duplicate applications
+      const existing = await storage.getApplicationByCandidateAndJob(candidate.id, req.body.jobId);
+      if (existing) {
+        return res.status(400).json({ message: 'You have already applied to this job.' });
       }
 
       const applicationData = insertApplicationSchema.parse({

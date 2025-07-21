@@ -80,6 +80,7 @@ export interface IStorage {
   reviewShortAnswer(attemptId: number, questionId: number, isCorrect: boolean, pointsEarned: number): Promise<any>;
   getAssessmentAnalytics(): Promise<any>;
   getCandidateAssessments(candidateId: number): Promise<any[]>;
+  getApplicationByCandidateAndJob(candidateId: number, jobId: number): Promise<Application | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -530,6 +531,13 @@ export class DatabaseStorage implements IStorage {
   async getCandidateAssessments(candidateId: number): Promise<any[]> {
     // Implement this method as needed for your logic
     return [];
+  }
+
+  async getApplicationByCandidateAndJob(candidateId: number, jobId: number) {
+    const [row] = await db.select().from(applications).where(
+      and(applications.candidateId.eq(candidateId), applications.jobId.eq(jobId))
+    );
+    return row || null;
   }
 }
 

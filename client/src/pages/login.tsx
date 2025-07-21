@@ -76,6 +76,7 @@ export default function Login() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirmPassword") as string;
+    const cnic = formData.get("cnic") as string;
 
     if (password !== confirmPassword) {
       toast({
@@ -101,6 +102,7 @@ export default function Login() {
       const response = await apiRequest("POST", "/api/auth/register", {
         email,
         password,
+        cnic,
       });
 
       const data = await response.json();
@@ -162,25 +164,32 @@ export default function Login() {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-                <label htmlFor="signup-email" className="form-label" style={{ width: '100%' }}>Email Address</label>
-                <input
-                  id="signup-email"
-                  name="email"
-                  type="email"
-                  placeholder="your.email@example.com"
-                  required
-                  className="form-input"
-                  style={{ width: '100%' }}
-                />
-              </div>
-            )}
+            ) : null}
           </div>
           <div className="form-wrapper">
             {showSignup ? (
               <form onSubmit={handleRegister} className="form">
-                <div className="form-fields">
+                <div className="form-fields-scrollable">
+                  <label htmlFor="signup-email" className="form-label" style={{ width: '100%' }}>Email Address</label>
+                  <input
+                    id="signup-email"
+                    name="email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    required
+                    className="form-input"
+                    style={{ width: '100%' }}
+                  />
+                  <label htmlFor="signup-cnic" className="form-label">CNIC</label>
+                  <input
+                    id="signup-cnic"
+                    name="cnic"
+                    type="text"
+                    placeholder="12345678901234"
+                    required
+                    className="form-input"
+                    maxLength={14}
+                  />
                   <label htmlFor="signup-password" className="form-label">Password</label>
                   <input
                     id="signup-password"
@@ -199,13 +208,10 @@ export default function Login() {
                     required
                     className="form-input"
                   />
-                  <div className="forgot-password" style={{ visibility: 'hidden' }}>
-                    <a>Spacer</a>
-                  </div>
                 </div>
-                <button type="submit" className="login-btn" disabled={loading}>
-                  {loading ? "Creating Account..." : "Create Account"}
-                </button>
+                  <button type="submit" className="login-btn" disabled={loading}>
+                    {loading ? "Creating Account..." : "Create Account"}
+                  </button>
                 <div className="signup-link">
                   <a onClick={() => setShowSignup(false)} style={{ cursor: "pointer" }}>Already have an account? Sign in</a>
                 </div>

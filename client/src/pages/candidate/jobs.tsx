@@ -60,6 +60,10 @@ export default function CandidateJobs() {
     queryKey: ["/api/profile"],
   });
 
+  const { data: applications } = useQuery<any[]>({
+    queryKey: ["/api/applications"],
+  });
+
   const applyForJobMutation = useMutation({
     mutationFn: async (jobId: number) => {
       const response = await apiRequest("POST", "/api/applications", { jobId });
@@ -337,9 +341,17 @@ export default function CandidateJobs() {
                         </Dialog>
                         <Button 
                           onClick={() => handleApply(job.id)}
-                          disabled={applyForJobMutation.isPending || applyingJobId === job.id}
+                          disabled={
+                            applyForJobMutation.isPending ||
+                            applyingJobId === job.id ||
+                            applications?.some(app => app.jobId === job.id)
+                          }
                         >
-                          {applyForJobMutation.isPending || applyingJobId === job.id ? "Applying..." : "Apply Now"}
+                          {applications?.some(app => app.jobId === job.id)
+                            ? "Already Applied"
+                            : (applyForJobMutation.isPending || applyingJobId === job.id)
+                              ? "Applying..."
+                              : "Apply Now"}
                         </Button>
                       </div>
                     </div>
