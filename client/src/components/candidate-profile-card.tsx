@@ -42,6 +42,9 @@ interface CandidateProfileCardProps {
     id: number;
     status: string;
     appliedAt: string;
+    ai_score?: number;
+    ai_score_breakdown?: { [key: string]: number };
+    red_flags?: string[];
   };
   onStatusChange?: (applicationId: number, newStatus: string) => void;
   onSendEmail?: (candidateId: number) => void;
@@ -107,6 +110,17 @@ export default function CandidateProfileCard({
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [editingReview, setEditingReview] = useState<CandidateReview | null>(null);
   const [reviewStage, setReviewStage] = useState(application.status);
+
+  // Admin: Regenerate AI score state
+  const [customWeights, setCustomWeights] = useState({
+    EducationScore: 0.5,
+    SkillsScore: 0.3,
+    ExperienceYearsScore: 0.1,
+    ExperienceRelevanceScore: 0.1,
+  });
+  const [regenLoading, setRegenLoading] = useState(false);
+  const [regenError, setRegenError] = useState("");
+  const [regenResult, setRegenResult] = useState<any>(null);
 
   const user = getCurrentUser();
 
@@ -217,6 +231,24 @@ export default function CandidateProfileCard({
     },
   });
 
+  // Admin: Regenerate AI score mutation
+  const handleRegenerateScore = async () => {
+    setRegenLoading(true);
+    setRegenError("");
+    try {
+      const res = await apiRequest("POST", `/api/applications/${application.id}/regenerate-score`, {
+        weights: customWeights,
+      });
+      const data = await res.json();
+      setRegenResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/applications"] });
+    } catch (err: any) {
+      setRegenError(err?.message || "Failed to regenerate score");
+    } finally {
+      setRegenLoading(false);
+    }
+  };
+
   const handleAddReview = () => {
     setEditingReview(null);
     setReviewRating([3]);
@@ -281,7 +313,13 @@ export default function CandidateProfileCard({
   console.log("CandidateProfileCard candidate prop:", candidate);
 
   return (
-    <Card className="w-full">
+    <Card className="w-full relative">
+      {/* AI Score at top right */}
+      {typeof application.ai_score === 'number' && (
+        <div className="absolute top-4 right-4 bg-primary text-white rounded-full px-4 py-1 text-sm font-bold shadow">
+          Job match: {application.ai_score}%
+        </div>
+      )}
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center space-x-3">
@@ -584,6 +622,16 @@ export default function CandidateProfileCard({
             >
               Send Email
             </Button>
+          </div>
+        </div>
+
+        {/* AI analyzed red flags at the bottom */}
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <div className="font-bold text-lg text-gray-800 mb-1">AI analyzed red flags:</div>
+          <div className="text-sm text-red-600 min-h-[1.5em]">
+            {Array.isArray(application.red_flags)
+              ? application.red_flags.join(", ")
+              : (application.red_flags ?? "None")}
           </div>
         </div>
       </CardContent>

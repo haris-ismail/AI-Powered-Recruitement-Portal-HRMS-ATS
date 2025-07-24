@@ -8,10 +8,10 @@ import {
   type CandidateReview, type InsertCandidateReview,
   type Skill, type InsertSkill,
   assessmentCategories, assessmentTemplates, assessmentQuestions, jobAssessments, assessmentAttempts,
-  assessmentAnswers
+  assessmentAnswers, searchQueries, type SearchQuery, type InsertSearchQuery, type SearchFilters, type SearchResult
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, like, ilike, or, sql, count } from "drizzle-orm";
 
 // Only method signatures in IStorage
 export interface IStorage {
@@ -32,6 +32,7 @@ export interface IStorage {
   deleteExperience(id: number): Promise<void>;
   getJobTemplates(): Promise<JobTemplate[]>;
   createJobTemplate(template: InsertJobTemplate): Promise<JobTemplate>;
+  updateJobTemplate(id: number, template: Partial<InsertJobTemplate>): Promise<JobTemplate>;
   deleteJobTemplate(id: number): Promise<void>;
   getJobs(): Promise<Job[]>;
   getJob(id: number): Promise<Job | undefined>;
@@ -80,6 +81,11 @@ export interface IStorage {
   reviewShortAnswer(attemptId: number, questionId: number, isCorrect: boolean, pointsEarned: number): Promise<any>;
   getAssessmentAnalytics(): Promise<any>;
   getCandidateAssessments(candidateId: number): Promise<any[]>;
+  searchResumes(query: string, filters: SearchFilters, page: number, limit: number): Promise<SearchResult>;
+  getSearchSuggestions(query: string): Promise<string[]>;
+  saveSearchQuery(query: string, filters: SearchFilters, resultsCount: number, userId: number): Promise<void>;
+  getSearchHistory(userId: number): Promise<SearchQuery[]>;
+  getApplication(id: number): Promise<Application | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -156,6 +162,11 @@ export class DatabaseStorage implements IStorage {
 
   async createJobTemplate(template: InsertJobTemplate): Promise<JobTemplate> {
     const [row] = await db.insert(jobTemplates).values(template).returning();
+    return row;
+  }
+
+  async updateJobTemplate(id: number, template: Partial<InsertJobTemplate>): Promise<JobTemplate> {
+    const [row] = await db.update(jobTemplates).set(template).where(eq(jobTemplates.id, id)).returning();
     return row;
   }
 
@@ -530,6 +541,165 @@ export class DatabaseStorage implements IStorage {
   async getCandidateAssessments(candidateId: number): Promise<any[]> {
     // Implement this method as needed for your logic
     return [];
+  }
+
+  async searchResumes(query: string, filters: SearchFilters, page: number, limit: number): Promise<SearchResult> {
+    let whereConditions = [];
+    let joinExperience = false;
+    let joinEducation = false;
+    let joinSkills = false;
+
+    // Full-text search on resume text
+    if (query) {
+      whereConditions.push(
+        sql`to_tsvector('english', ${candidates.resumeText}) @@ plainto_tsquery('english', ${query})`
+      );
+    }
+
+    // Profile filters
+    if (filters.firstName) {
+      whereConditions.push(ilike(candidates.firstName, `%${filters.firstName}%`));
+    }
+    if (filters.lastName) {
+      whereConditions.push(ilike(candidates.lastName, `%${filters.lastName}%`));
+    }
+    if (filters.city) {
+      whereConditions.push(ilike(candidates.city, `%${filters.city}%`));
+    }
+    if (filters.province) {
+      whereConditions.push(ilike(candidates.province, `%${filters.province}%`));
+    }
+    if (filters.cnic) {
+      whereConditions.push(ilike(candidates.cnic, `%${filters.cnic}%`));
+    }
+    if (filters.motivationLetter) {
+      whereConditions.push(ilike(candidates.motivationLetter, `%${filters.motivationLetter}%`));
+    }
+
+    // Skills filter (join if present and non-empty)
+    if (filters.skills && Array.isArray(filters.skills) && filters.skills.length > 0) {
+      joinSkills = true;
+    }
+
+    // Experience filter (join if present and non-empty)
+    if (filters.experience && Array.isArray(filters.experience) && filters.experience.length > 0) {
+      joinExperience = true;
+    }
+
+    // Education filter (join if present and non-empty)
+    if (filters.education && Array.isArray(filters.education) && filters.education.length > 0) {
+      joinEducation = true;
+    }
+
+    // Build the query
+    let queryBuilder = db.select().from(candidates);
+
+    // Join skills if needed
+    if (joinSkills) {
+      queryBuilder = queryBuilder.leftJoin(skills, eq(skills.candidateId, candidates.id));
+      whereConditions.push(
+        or(...filters.skills.map(skill => ilike(skills.name, `%${skill}%`)))
+      );
+    }
+    // Join experience if needed
+    if (joinExperience) {
+      queryBuilder = queryBuilder.leftJoin(experience, eq(experience.candidateId, candidates.id));
+      whereConditions.push(
+        or(...filters.experience.map(exp =>
+          or(
+            ilike(experience.company, `%${exp}%`),
+            ilike(experience.role, `%${exp}%`)
+          )
+        ))
+      );
+    }
+    // Join education if needed
+    if (joinEducation) {
+      queryBuilder = queryBuilder.leftJoin(education, eq(education.candidateId, candidates.id));
+      whereConditions.push(
+        or(...filters.education.map(edu =>
+          or(
+            ilike(education.degree, `%${edu}%`),
+            ilike(education.institution, `%${edu}%`)
+          )
+        ))
+      );
+    }
+
+    if (whereConditions.length > 0) {
+      queryBuilder = queryBuilder.where(and(...whereConditions));
+    }
+
+    // Debug: Log the query and filters
+    console.log('searchResumes filters:', JSON.stringify(filters));
+    console.log('searchResumes whereConditions:', whereConditions);
+    // Note: Drizzle ORM does not expose raw SQL easily, but this will show the filter structure.
+
+    // Get total count
+    let countQuery = db.select({ count: count() }).from(candidates);
+    if (joinSkills) {
+      countQuery = countQuery.leftJoin(skills, eq(skills.candidateId, candidates.id));
+    }
+    if (joinExperience) {
+      countQuery = countQuery.leftJoin(experience, eq(experience.candidateId, candidates.id));
+    }
+    if (joinEducation) {
+      countQuery = countQuery.leftJoin(education, eq(education.candidateId, candidates.id));
+    }
+    if (whereConditions.length > 0) {
+      countQuery = countQuery.where(and(...whereConditions));
+    }
+    const totalResult = await countQuery;
+    const total = totalResult[0]?.count || 0;
+
+    // Get paginated results
+    const results = await queryBuilder
+      .limit(limit)
+      .offset((page - 1) * limit)
+      .orderBy(desc(candidates.createdAt));
+
+    // Debug: Log the number of results
+    console.log('searchResumes results count:', results.length);
+
+    return {
+      candidates: results,
+      total,
+      page,
+      limit,
+      filters,
+      suggestions: []
+    };
+  }
+
+  async getSearchSuggestions(query: string): Promise<string[]> {
+    // Get suggestions from recent search queries
+    const suggestions = await db.select({ query: searchQueries.query })
+      .from(searchQueries)
+      .where(ilike(searchQueries.query, `%${query}%`))
+      .limit(5);
+
+    return suggestions.map(s => s.query);
+  }
+
+  async saveSearchQuery(query: string, filters: SearchFilters, resultsCount: number, userId: number): Promise<void> {
+    await db.insert(searchQueries).values({
+      query,
+      filters: JSON.stringify(filters),
+      resultsCount,
+      createdBy: userId
+    });
+  }
+
+  async getSearchHistory(userId: number): Promise<SearchQuery[]> {
+    return await db.select()
+      .from(searchQueries)
+      .where(eq(searchQueries.createdBy, userId))
+      .orderBy(desc(searchQueries.createdAt))
+      .limit(10);
+  }
+
+  async getApplication(id: number): Promise<Application | undefined> {
+    return await db.select().from(applications).where(eq(applications.id, id)).then(rows => rows[0]);
   }
 }
 

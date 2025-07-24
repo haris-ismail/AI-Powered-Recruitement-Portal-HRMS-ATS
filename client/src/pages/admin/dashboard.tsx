@@ -118,6 +118,12 @@ export default function AdminDashboard() {
                 <span>Recruitment Pipeline</span>
               </a>
             </Link>
+            <Link href="/admin/resume-search">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Resume Search</span>
+              </a>
+            </Link>
             <Link href="/admin/email-templates">
               <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
                 <Calendar className="h-5 w-5" />

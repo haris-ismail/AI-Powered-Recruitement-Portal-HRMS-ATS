@@ -5,8 +5,9 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
-import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema } from "@shared/schema";
+import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema, type SearchFilters } from "@shared/schema";
 import { z } from "zod";
+import { spawn } from "child_process";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -134,12 +135,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
+      // Extract user data (email, password) and candidate data (cnic) separately
+      const { email, password, cnic } = req.body;
+      
+      // Validate user data
+      const userData = insertUserSchema.parse({ email, password });
       
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
         return res.status(400).json({ message: 'User already exists' });
+      }
+
+      // Check CNIC uniqueness
+      if (!cnic) {
+        return res.status(400).json({ message: 'CNIC is required' });
+      }
+      const existingCnic = await storage.getCandidateByCnic(cnic);
+      if (existingCnic) {
+        return res.status(400).json({ message: 'CNIC already exists' });
       }
 
       // Hash password
@@ -150,16 +164,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
         role: 'candidate'
       });
-
-      // Check CNIC uniqueness
-      const cnic = req.body.cnic;
-      if (!cnic) {
-        return res.status(400).json({ message: 'CNIC is required' });
-      }
-      const existingCnic = await storage.getCandidateByCnic(cnic);
-      if (existingCnic) {
-        return res.status(400).json({ message: 'CNIC already exists' });
-      }
 
       // Create candidate profile
       await storage.createCandidate({
@@ -181,11 +185,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           role: user.role 
         } 
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Registration error:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Server error', details: error.message });
     }
   });
 
@@ -313,9 +318,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const resumeUrl = `/uploads/${req.file.filename}`;
-      await storage.updateCandidate(candidate.id, { resumeUrl });
+      const resumePath = req.file.path;
 
-      res.json({ resumeUrl });
+      // Call Python script to extract resume text
+      let resumeText = '';
+      try {
+        const python = spawn('python', [
+          './server/resume_parser/extract_resume_text.py',
+          resumePath
+        ], {
+          env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+        let output = '';
+        let errorOutput = '';
+        python.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        python.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        await new Promise((resolve, reject) => {
+          python.on('close', (code) => {
+            if (code === 0) {
+              resumeText = output;
+              resolve(null);
+            } else {
+              console.error('Resume parsing error:', errorOutput);
+              resumeText = '';
+              resolve(null); // Don't block upload on parsing error
+            }
+          });
+        });
+      } catch (err) {
+        console.error('Failed to parse resume:', err);
+        resumeText = '';
+      }
+
+      await storage.updateCandidate(candidate.id, { resumeUrl, resumeText });
+
+      res.json({ resumeUrl, resumeText });
     } catch (error) {
       res.status(500).json({ message: 'Server error' });
     }
@@ -398,6 +439,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/job-templates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const templateData = insertJobTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateJobTemplate(parseInt(req.params.id), templateData);
+      res.json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
   app.delete('/api/job-templates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       await storage.deleteJobTemplate(parseInt(req.params.id));
@@ -429,6 +483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/applications', authenticateToken, requireRole('candidate'), async (req: any, res) => {
     try {
       const candidate = await storage.getCandidate(req.user.id);
+      console.log('Candidate fetched:', candidate);
       if (!candidate) {
         return res.status(404).json({ message: 'Profile not found' });
       }
@@ -437,10 +492,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         candidateId: candidate.id
       });
+      console.log('Application data to create:', applicationData);
 
       const application = await storage.createApplication(applicationData);
+      console.log('Application created:', application);
+
+      // --- AI SCORING INTEGRATION ---
+      try {
+        const profile = await storage.getCandidateWithProfile(candidate.id);
+        const skills = await storage.getCandidateSkills(candidate.id);
+        const job = await storage.getJob(application.jobId);
+        if (!profile.resumeText) {
+          return res.status(400).json({ message: 'Please upload a resume before applying for a job.' });
+        }
+        const resumeText = profile.resumeText;
+        const experience_dates = (profile.experience || []).map(e => [e.fromDate, e.toDate]);
+        const education_dates = (profile.education || []).map(e => [e.fromDate, e.toDate]);
+        const aiInput = {
+          resume: resumeText,
+          job_description: job?.description || '',
+          experience_dates,
+          education_dates,
+          groq_api_key: process.env.GROQ_API_KEY || undefined
+        };
+        console.log('AI input:', aiInput);
+        // When spawning the Python process for AI scoring, pass the environment explicitly
+        const py = spawn('python', ['server/resume_parser/ai_scoring.py'], {
+          env: { ...process.env }
+        });
+        let output = '';
+        let errorOutput = '';
+        py.stdout.on('data', (data) => { output += data.toString(); });
+        py.stderr.on('data', (data) => { errorOutput += data.toString(); });
+        py.stdin.write(JSON.stringify(aiInput));
+        py.stdin.end();
+        await new Promise((resolve) => {
+          py.on('close', () => resolve(null));
+        });
+        console.log('AI script output:', output);
+        if (errorOutput) console.error('AI script error output:', errorOutput);
+        let aiResult;
+        try {
+          aiResult = JSON.parse(output);
+        } catch (e) {
+          console.error('Error parsing AI script output:', output, e);
+          aiResult = null;
+        }
+        console.log('Parsed AI result:', aiResult);
+        if (aiResult && aiResult.WeightedScore !== undefined) {
+          await storage.updateApplication(application.id, {
+            ai_score: aiResult.WeightedScore,
+            ai_score_breakdown: aiResult.Scores,
+            red_flags: aiResult.RedFlag
+          });
+        } else {
+          console.error('AI result missing WeightedScore or is null:', aiResult);
+        }
+      } catch (err) {
+        console.error('AI scoring error:', err);
+      }
+      // --- END AI SCORING INTEGRATION ---
+
       res.status(201).json(application);
     } catch (error) {
+      console.error('Error in POST /api/applications:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
@@ -458,6 +573,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
       res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // Admin: Regenerate AI score for an application with custom weights
+  app.post('/api/applications/:id/regenerate-score', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const applicationId = parseInt(req.params.id);
+      const weights = req.body.weights;
+      // Fetch application
+      const application = await storage.getApplication(applicationId);
+      if (!application) {
+        return res.status(404).json({ message: 'Application not found' });
+      }
+      // Fetch candidate profile
+      const profile = await storage.getCandidateWithProfile(application.candidateId);
+      const skills = await storage.getCandidateSkills(application.candidateId);
+      // Fetch job
+      const job = await storage.getJob(application.jobId);
+      // Only use extracted resume text from DB
+      if (!profile.resumeText) {
+        return res.status(400).json({ message: 'Please upload a resume before applying for a job.' });
+      }
+      const resumeText = profile.resumeText;
+      const experience_dates = (profile.experience || []).map(e => [e.fromDate, e.toDate]);
+      const education_dates = (profile.education || []).map(e => [e.fromDate, e.toDate]);
+      const aiInput = {
+        resume: resumeText,
+        job_description: job?.description || '',
+        experience_dates,
+        education_dates,
+        weights,
+        groq_api_key: process.env.GROQ_API_KEY || undefined
+      };
+      console.log('AI input (regenerate):', aiInput);
+      const { spawn } = (await import('child_process'));
+      const py = spawn('python', ['./server/resume_parser/ai_scoring.py'], {
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+      });
+      let output = '';
+      let errorOutput = '';
+      py.stdout.on('data', (data: any) => { output += data.toString(); });
+      py.stderr.on('data', (data: any) => { errorOutput += data.toString(); });
+      py.stdin.write(JSON.stringify(aiInput));
+      py.stdin.end();
+      await new Promise((resolve) => {
+        py.on('close', () => resolve(null));
+      });
+      console.log('AI script output (regenerate):', output);
+      if (errorOutput) console.error('AI script error output (regenerate):', errorOutput);
+      let aiResult;
+      try {
+        aiResult = JSON.parse(output);
+      } catch (e: any) {
+        console.error('Error parsing AI script output (regenerate):', output, e);
+        aiResult = null;
+      }
+      console.log('Parsed AI result (regenerate):', aiResult);
+      if (aiResult && aiResult.WeightedScore !== undefined) {
+        await storage.updateApplication(applicationId, {
+          ai_score: aiResult.WeightedScore,
+          ai_score_breakdown: aiResult.Scores,
+          red_flags: aiResult.RedFlag
+        });
+      }
+      // Fetch updated application
+      const updated = await storage.getApplication(applicationId);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to regenerate AI score', details: error?.message });
+    }
+  });
+
+  // Batch regenerate AI scores for all applications of a job
+  app.post('/api/jobs/:jobId/regenerate-scores', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const weights = req.body.weights;
+      if (!weights || typeof weights !== 'object') {
+        return res.status(400).json({ message: 'Weights are required.' });
+      }
+      // Fetch all applications for the job
+      const applications = await storage.getApplicationsByJob(jobId);
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: 'Job not found.' });
+      }
+      let updated = [];
+      for (const application of applications) {
+        const profile = await storage.getCandidateWithProfile(application.candidateId);
+        if (!profile || !profile.resumeText) {
+          continue; // Skip if no profile or resume
+        }
+        const experience_dates = (profile.experience || []).map((e: any) => [e.fromDate, e.toDate]);
+        const education_dates = (profile.education || []).map((e: any) => [e.fromDate, e.toDate]);
+        const aiInput = {
+          resume: profile.resumeText,
+          job_description: job.description || '',
+          experience_dates,
+          education_dates,
+          weights,
+          groq_api_key: process.env.GROQ_API_KEY || undefined
+        };
+        const { spawn } = await import('child_process');
+        let output = '';
+        let errorOutput = '';
+        const py = spawn('python', ['./server/resume_parser/ai_scoring.py'], {
+          env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+        py.stdout.on('data', (data: any) => { output += data.toString(); });
+        py.stderr.on('data', (data: any) => { errorOutput += data.toString(); });
+        py.stdin.write(JSON.stringify(aiInput));
+        py.stdin.end();
+        await new Promise((resolve) => {
+          py.on('close', () => resolve(null));
+        });
+        let aiResult;
+        try {
+          aiResult = JSON.parse(output);
+        } catch (e: any) {
+          aiResult = null;
+        }
+        if (aiResult && aiResult.WeightedScore !== undefined) {
+          await storage.updateApplication(application.id, {
+            ai_score: aiResult.WeightedScore,
+            ai_score_breakdown: aiResult.Scores,
+            red_flags: aiResult.RedFlag
+          });
+          updated.push({ applicationId: application.id, ai_score: aiResult.WeightedScore, red_flags: aiResult.RedFlag });
+        }
+      }
+      res.json({ updated });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to batch regenerate AI scores', details: error?.message });
     }
   });
 
@@ -788,6 +1036,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const analytics = await storage.getAssessmentAnalytics();
       res.json(analytics);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // --- Resume Search ---
+  app.get('/api/search/resumes', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const { q = '', skills, experience, education, location, status, page = 1, limit = 20 } = req.query;
+      
+      const filters: SearchFilters = {
+        skills: skills ? (Array.isArray(skills) ? skills : [skills]) : undefined,
+        experience: experience ? (Array.isArray(experience) ? experience : [experience]) : undefined,
+        education: education ? (Array.isArray(education) ? education : [education]) : undefined,
+        location: location ? (Array.isArray(location) ? location : [location]) : undefined,
+        status: status ? (Array.isArray(status) ? status : [status]) : undefined,
+      };
+
+      const results = await storage.searchResumes(q, filters, parseInt(page), parseInt(limit));
+      
+      // Save search query for history
+      await storage.saveSearchQuery(q, filters, results.total, req.user.id);
+      
+      res.json(results);
+    } catch (error) {
+      console.error('Search error:', error);
+      res.status(500).json({ message: 'Search failed' });
+    }
+  });
+
+  app.get('/api/search/suggestions', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const { q = '' } = req.query;
+      const suggestions = await storage.getSearchSuggestions(q);
+      res.json(suggestions);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to get suggestions' });
+    }
+  });
+
+  app.get('/api/search/history', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const history = await storage.getSearchHistory(req.user.id);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to get search history' });
+    }
+  });
+
+  // Candidate search endpoint
+  app.post('/api/candidate-search', authenticateToken, async (req, res) => {
+    try {
+      const { keyword, filters, page = 1, limit = 20 } = req.body;
+      // filters: { firstName, lastName, city, province, cnic, motivationLetter, skills, experience, education }
+      const results = await storage.searchResumes(keyword, filters || {}, page, limit);
+      res.json(results);
     } catch (error) {
       res.status(500).json({ message: 'Server error' });
     }

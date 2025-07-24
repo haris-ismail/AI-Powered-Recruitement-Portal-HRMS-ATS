@@ -444,6 +444,10 @@ export default function AssessmentTemplatesPage() {
               <Users className="h-5 w-5" />
               <span>Recruitment Pipeline</span>
             </Link>
+            <Link href="/admin/resume-search" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <FileText className="h-5 w-5" />
+              <span>Resume Search</span>
+            </Link>
             <Link href="/admin/email-templates" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
               <Calendar className="h-5 w-5" />
               <span>Email Templates</span>

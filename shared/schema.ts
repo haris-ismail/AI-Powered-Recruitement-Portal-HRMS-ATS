@@ -27,6 +27,7 @@ export const candidates = pgTable("candidates", {
   postalCode: text("postal_code"),
   resumeUrl: text("resume_url"),
   motivationLetter: text("motivation_letter"),
+  resumeText: text("resume_text"), // Extracted resume text
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -87,6 +88,9 @@ export const applications = pgTable("applications", {
   status: text("status").notNull().default("applied"), // "applied", "shortlisted", "interview", "hired", "onboarded", "rejected"
   appliedAt: timestamp("applied_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  ai_score: integer("ai_score"), // AI score (0-100)
+  ai_score_breakdown: json("ai_score_breakdown"), // JSON breakdown of scores
+  red_flags: text("red_flags"), // Red flag text
 });
 
 export const emailTemplates = pgTable("email_templates", {
@@ -191,12 +195,23 @@ export const assessmentAnswers = pgTable("assessment_answers", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Search-related tables
+export const searchQueries = pgTable("search_queries", {
+  id: serial("id").primaryKey(),
+  query: text("query").notNull(),
+  filters: json("filters"), // JSON object for search filters
+  resultsCount: integer("results_count"),
+  createdBy: integer("created_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
-export const usersRelations = relations(users, ({ one }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   candidate: one(candidates, {
     fields: [users.id],
     references: [candidates.userId],
   }),
+  searchQueries: many(searchQueries),
 }));
 
 export const candidatesRelations = relations(candidates, ({ one, many }) => ({
@@ -331,6 +346,12 @@ export const insertSkillSchema = createInsertSchema(skills).omit({
   id: true,
 });
 
+// Search-related schemas and types
+export const insertSearchQuerySchema = createInsertSchema(searchQueries).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -354,3 +375,34 @@ export type CandidateReview = typeof candidateReviews.$inferSelect;
 export type InsertCandidateReview = z.infer<typeof insertCandidateReviewSchema>;
 export type Skill = typeof skills.$inferSelect;
 export type InsertSkill = z.infer<typeof insertSkillSchema>;
+export type SearchQuery = typeof searchQueries.$inferSelect;
+export type InsertSearchQuery = z.infer<typeof insertSearchQuerySchema>;
+
+// Search-related types
+export interface SearchFilters {
+  skills?: string[];
+  experience?: string[];
+  education?: string[];
+  location?: string[];
+  status?: string[];
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+  // Added for advanced candidate filtering
+  firstName?: string;
+  lastName?: string;
+  city?: string;
+  province?: string;
+  cnic?: string;
+  motivationLetter?: string;
+}
+
+export interface SearchResult {
+  candidates: Candidate[];
+  total: number;
+  page: number;
+  limit: number;
+  filters: SearchFilters;
+  suggestions: string[];
+}

@@ -73,9 +73,41 @@ export default function Login() {
     setLoading(true);
 
     const formData = new FormData(event.currentTarget);
-    const email = formData.get("email") as string;
+    const emailRaw = formData.get("email");
+    const email = typeof emailRaw === "string" ? emailRaw.trim() : "";
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirmPassword") as string;
+    const cnic = formData.get("cnic") as string;
+
+    if (!email) {
+      toast({
+        title: "Registration failed",
+        description: "Email is required.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (!cnic) {
+      toast({
+        title: "Registration failed",
+        description: "CNIC is required.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (!/^\d{14}$/.test(cnic)) {
+      toast({
+        title: "Registration failed",
+        description: "CNIC must be exactly 14 digits.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
 
     if (password !== confirmPassword) {
       toast({
@@ -101,6 +133,7 @@ export default function Login() {
       const response = await apiRequest("POST", "/api/auth/register", {
         email,
         password,
+        cnic,
       });
 
       const data = await response.json();
@@ -162,25 +195,22 @@ export default function Login() {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-                <label htmlFor="signup-email" className="form-label" style={{ width: '100%' }}>Email Address</label>
-                <input
-                  id="signup-email"
-                  name="email"
-                  type="email"
-                  placeholder="your.email@example.com"
-                  required
-                  className="form-input"
-                  style={{ width: '100%' }}
-                />
-              </div>
-            )}
+            ) : null}
           </div>
           <div className="form-wrapper">
             {showSignup ? (
               <form onSubmit={handleRegister} className="form">
                 <div className="form-fields">
+                  <label htmlFor="signup-email" className="form-label" style={{ width: '100%' }}>Email Address</label>
+                  <input
+                    id="signup-email"
+                    name="email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    required
+                    className="form-input"
+                    style={{ width: '100%' }}
+                  />
                   <label htmlFor="signup-password" className="form-label">Password</label>
                   <input
                     id="signup-password"
@@ -196,6 +226,15 @@ export default function Login() {
                     name="confirmPassword"
                     type="password"
                     placeholder="••••••••"
+                    required
+                    className="form-input"
+                  />
+                  <label htmlFor="signup-cnic" className="form-label">CNIC</label>
+                  <input
+                    id="signup-cnic"
+                    name="cnic"
+                    type="text"
+                    placeholder="12345-6789012-3"
                     required
                     className="form-input"
                   />

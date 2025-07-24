@@ -43,6 +43,9 @@ function isProfileComplete(profile: any) {
 }
 
 function ProfileCard({ profile, educationList, experienceList, skills, onEdit }: any) {
+  console.log("ProfileCard received profile:", profile); // Debug log
+  console.log("ProfileCard resumeText:", profile.resumeText); // Debug log
+  
   return (
     <Card className="mb-6">
       <CardHeader>
@@ -98,6 +101,13 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
             <a href={profile.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View Resume</a>
           ) : <span className="italic text-gray-400">Not uploaded</span>}
         </div>
+        {/* Show extracted resume text if available - always show for debugging */}
+        <div className="mb-4">
+          <div className="font-semibold">Extracted Resume Text:</div>
+          <div className="whitespace-pre-line text-gray-700 text-xs max-h-60 overflow-auto border rounded p-2 bg-gray-50">
+            {profile.resumeText || <span className="italic text-gray-400">No extracted text available</span>}
+          </div>
+        </div>
         <div className="mb-4">
           <div className="font-semibold mb-1">Skills:</div>
           {skills && skills.length > 0 ? skills.map((skill: any, i: number) => (
@@ -133,7 +143,8 @@ export default function CandidateProfile() {
     postalCode: "",
     motivationLetter: "",
     resumeUrl: "",
-    profilePicture: ""
+    profilePicture: "",
+    resumeText: ""
   });
 
   const [educationList, setEducationList] = useState([
@@ -205,6 +216,7 @@ export default function CandidateProfile() {
 
   const [isEditing, setIsEditing] = useState(true);
   const [error, setError] = useState("");
+  const [resumeText, setResumeText] = useState("");
 
   const { data: profile, isLoading } = useQuery<any>({
     queryKey: ["/api/profile"],
@@ -225,8 +237,10 @@ export default function CandidateProfile() {
         postalCode: profile.postalCode || "",
         motivationLetter: profile.motivationLetter || "",
         resumeUrl: profile.resumeUrl || "",
-        profilePicture: profile.profilePicture || ""
+        profilePicture: profile.profilePicture || "",
+        resumeText: profile.resumeText || ""
       });
+      setResumeText(profile.resumeText || "");
       setEducationList(profile.education || []);
       setExperienceList(profile.experience || []);
       // Set isEditing based on profile completeness
@@ -310,13 +324,14 @@ export default function CandidateProfile() {
       return response.json();
     },
     onSuccess: (data) => {
+      console.log("Resume upload response:", data); // Debug log
       toast({
         title: "Success",
         description: "Resume uploaded successfully",
       });
-      // Instead of refetching, update the local state for resumeUrl
-      setProfileData(prev => ({ ...prev, resumeUrl: data.resumeUrl }));
-      // queryClient.invalidateQueries({ queryKey: ["/api/profile"] }); // Removed
+      setProfileData(prev => ({ ...prev, resumeUrl: data.resumeUrl, resumeText: data.resumeText }));
+      setResumeText(data.resumeText || "");
+      console.log("Updated resumeText:", data.resumeText); // Debug log
     },
     onError: (error: any) => {
       toast({
@@ -363,13 +378,17 @@ export default function CandidateProfile() {
       setError("CNIC must be exactly 14 digits");
       return;
     }
-    if (!isProfileComplete({ ...profileData, email: user?.email })) {
+    if (!user?.email) {
+      setError("Email is missing. Please log in again.");
+      return;
+    }
+    if (!isProfileComplete({ ...profileData, email: user.email })) {
       setError("Please fill all required fields to save your profile.");
       return;
     }
     setError("");
     try {
-      await updateProfileMutation.mutateAsync(profileData);
+      await updateProfileMutation.mutateAsync({ ...profileData, email: user.email });
       setIsEditing(false);
     } catch (err: any) {
       if (err?.response?.data?.message) {
@@ -530,7 +549,7 @@ export default function CandidateProfile() {
               <p className="text-gray-600">View and edit your profile information</p>
             </div>
             <ProfileCard 
-              profile={{ ...profileData, email: user?.email, resumeUrl: profile?.resumeUrl }} 
+              profile={{ ...profileData, email: user?.email, resumeUrl: profile?.resumeUrl, resumeText }} 
               educationList={educationList} 
               experienceList={experienceList} 
               skills={skills}

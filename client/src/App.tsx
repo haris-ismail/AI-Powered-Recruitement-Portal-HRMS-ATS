@@ -16,6 +16,7 @@ import CandidateJobs from "@/pages/candidate/jobs";
 import CandidateApplications from "@/pages/candidate/applications";
 import AuthGuard from "@/components/auth-guard";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ResumeSearchPage from "@/pages/admin/resume-search";
 
 function Router() {
   return (
@@ -46,6 +47,11 @@ function Router() {
       <Route path="/admin/email/compose">
         <AuthGuard requiredRole="admin">
           <EmailComposePage />
+        </AuthGuard>
+      </Route>
+      <Route path="/admin/resume-search">
+        <AuthGuard requiredRole="admin">
+          <ResumeSearchPage />
         </AuthGuard>
       </Route>
       <Route path="/admin">

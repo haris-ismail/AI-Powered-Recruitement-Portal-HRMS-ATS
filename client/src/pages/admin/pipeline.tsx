@@ -68,6 +68,14 @@ export default function AdminPipeline() {
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [assessmentFilter, setAssessmentFilter] = useState<string>("");
   const [assessmentData, setAssessmentData] = useState<Record<number, AssessmentInfo>>({}); // candidateId -> info
+  const [jobWeights, setJobWeights] = useState({
+    EducationScore: 0.5,
+    SkillsScore: 0.3,
+    ExperienceYearsScore: 0.1,
+    ExperienceRelevanceScore: 0.1,
+  });
+  const [weightLoading, setWeightLoading] = useState(false);
+  const [weightError, setWeightError] = useState("");
 
   console.log("Current user:", user); // Debug log
   console.log("User role:", user?.role); // Debug log
@@ -203,6 +211,24 @@ export default function AdminPipeline() {
     return colors[color as keyof typeof colors] || "bg-gray-100 text-gray-800";
   };
 
+  // Placeholder for batch update API call
+  const handleApplyWeights = async () => {
+    setWeightLoading(true);
+    setWeightError("");
+    try {
+      const response = await apiRequest("POST", `/api/jobs/${selectedJobId}/regenerate-scores`, { weights: jobWeights });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || "Failed to update weights");
+      }
+      refetchApplications();
+    } catch (err: any) {
+      setWeightError(err?.message || "Failed to update weights");
+    } finally {
+      setWeightLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -251,6 +277,12 @@ export default function AdminPipeline() {
                 <span>Recruitment Pipeline</span>
               </a>
             </Link>
+            <Link href="/admin/resume-search">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Resume Search</span>
+              </a>
+            </Link>
             <Link href="/admin/email-templates">
               <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
                 <Calendar className="h-5 w-5" />
@@ -293,6 +325,40 @@ export default function AdminPipeline() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Job-level weight adjustment UI (moved here) */}
+          {selectedJobId && (
+            <div className="max-w-4xl mx-auto mb-4 p-4 bg-white border rounded shadow-sm">
+              <div className="font-semibold mb-2 text-primary">AI Scoring Weights for this Job (must sum to 1.0)</div>
+              <div className="flex gap-4 flex-wrap mb-2">
+                {Object.entries(jobWeights).map(([k, v]) => (
+                  <div key={k} className="flex flex-col items-center">
+                    <label className="text-xs font-medium mb-1">{k.replace(/Score$/, "")}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={v}
+                      onChange={e => {
+                        const val = parseFloat(e.target.value);
+                        setJobWeights(w => ({ ...w, [k]: isNaN(val) ? 0 : val }));
+                      }}
+                      className="w-20 px-2 py-1 border rounded text-xs"
+                    />
+                  </div>
+                ))}
+              </div>
+              <Button
+                size="sm"
+                onClick={handleApplyWeights}
+                disabled={weightLoading || Object.values(jobWeights).reduce((a, b) => a + b, 0) !== 1}
+              >
+                {weightLoading ? "Updating..." : "Apply Weights to All Applicants"}
+              </Button>
+              {weightError && <div className="text-red-600 text-xs mt-1">{weightError}</div>}
+            </div>
+          )}
 
           {selectedJobId ? (
             <div className="flex flex-col gap-6">

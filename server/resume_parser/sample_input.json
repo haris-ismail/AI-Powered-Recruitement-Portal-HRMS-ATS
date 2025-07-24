@@ -1,0 +1,19 @@
+{
+  "resume": "Haris Ismail\n\nAl/ML Engineer\n\n2 Profile\nAspiring Al/ML Engineer with hands-on experience in computer vision,\nnatural language processing, and large language model fine-tuning,\nincluding Retrieval-Augmented Generation (RAG). Proficient in Python,\nSQL/NoSQL databases and Flask/Flutter based development. | also\nhave experience in full-stack web-development using ASP.NET. Adept\nat building intelligent systems that leverage Al to solve real-world\nproblems.\n\n2 Education\n\nBS(Al), Ghulam Ishaq Khan Institue of science and technology\nSeptember 2022 - September 2026\n\nCurrently pursuing my bachelors in Artificial Intelligence at GIKI.\n\n@ Projects\n\nSmart Attendence System\n\nPython, YOLO, DeepFace, Flask, React, SQLite\n\nComputer Vision based system that automates attendance marking\nfrom group photos using facial recognition. Integrated YOLO for\nreal-time face detection and DeepFace for accurate identity matching.\nDesigned a full-stack architecture with React (frontend), Flask\n(backend), and SQLite for storage. The system significantly reduces\nmanual effort and improves accuracy in classroom attendance\ntracking.\n\nAutonomous-Driving Accident Prevention System using YOLOv5\nand LSTM\n\nPython, PyTorch, YOLOvS, LSTM, OpenCy, Flutter, Feature Extraction\nDeep Learning based accident prevention system that forecasts vehicle\ncollisions in real-time from dashcam surveillance footage. Leveraged\nYOLOv5 for object detection and LSTM networks for modeling/learning\ntemporal vehicle dynamics using the CADP datasets. Achieved early\ncollision detection 2-4 seconds before impact. Flutter-based interface\nfor real-time video upload, vehicle tracking, and accident alert.\n\nCustomer Service Chatbot\nGPT-3(OpenAl)LLM, spaCy, Flask, Javascript, Hugging Face, AWS\n\nChatbot integrated into a laptop stores website using GPT-3 (OpenAl)\nfor handling customer inquiries on product specifications, pricing,\navailability, and personalized recommendations. Fine-tuned GPT-3\n\non real customer queries, built a Flask backend for seamless\ncommunication with the model, and created a real-time JavaScript\ninterface for customer interaction. Hosted on AWS to ensure scalability\n\nDetails\n\nRawalpindi\n\nPakistan\n+923418904011\nu2022201@giki.edu.pk\n\nSkills\nScikit-Learn\n\nTensorFlow/Keras\nOpenCV, spaCy\nHugging Face Transformers\nFaceNet, DeepFace\nMySQL, PostgreSQL\nMongoDB\n\nReact, Javascript\nASP.net, C#\nFlask/Django\nFlutter\n\nAWS\n\nGitHub\n\n\n",
+  "job_description": "-Robust Software dev skills.\n-Adaptive under stressed circumstances.\n-Preliminary knowledge of Machine Learning.",
+  "experience_dates": [
+    ["2021-01-01", "2021-06-01"],
+    ["2021-07-01", "2021-12-01"],
+    ["2022-02-01", "2022-08-01"]
+  ],
+  "education_dates": [
+    ["2017-09-01", "2021-01-01"]
+  ],
+  "weights": {
+    "EducationScore": 0.5,
+    "SkillsScore": 0.3,
+    "ExperienceYearsScore": 0.1,
+    "ExperienceRelevanceScore": 0.1
+  },
+  "groq_api_key": "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"
+} 
