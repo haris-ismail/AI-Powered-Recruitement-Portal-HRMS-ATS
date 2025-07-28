@@ -37,6 +37,7 @@ export interface IStorage {
   deleteJobTemplate(id: number): Promise<void>;
   getJobs(): Promise<Job[]>;
   getJob(id: number): Promise<Job | undefined>;
+  getJobById(jobId: number): Promise<Job | null>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: number, job: Partial<InsertJob>): Promise<Job>;
   getApplications(): Promise<Application[]>;
@@ -44,6 +45,8 @@ export interface IStorage {
   getApplicationsByCandidate(candidateId: number): Promise<Application[]>;
   createApplication(application: InsertApplication): Promise<Application>;
   updateApplication(id: number, application: Partial<InsertApplication>): Promise<Application>;
+  getApplicationById(applicationId: number): Promise<Application | null>;
+  deleteApplication(applicationId: number): Promise<void>;
   getEmailTemplates(): Promise<EmailTemplate[]>;
   createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
   getJobStats(): Promise<any>;
@@ -75,7 +78,7 @@ export interface IStorage {
   createJobAssessment(jobId: number, data: any): Promise<any>;
   deleteJobAssessment(id: number): Promise<void>;
   getPendingAssessments(candidateId: number): Promise<any[]>;
-  startAssessment(templateId: number, candidateId: number, jobId?: number): Promise<any>;
+  startAssessment(templateId: number, candidateId: number, jobId?: number | undefined): Promise<any>;
   submitAssessment(attemptId: number, data: any): Promise<any>;
   getAssessmentResults(attemptId: number): Promise<any>;
   getAllAssessmentResults(): Promise<any[]>;
@@ -192,6 +195,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(jobs).where(eq(jobs.id, id)).then(rows => rows[0]);
   }
 
+  async getJobById(jobId: number): Promise<Job | null> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId));
+    return job || null;
+  }
+
   async createJob(job: InsertJob): Promise<Job> {
     const [row] = await db.insert(jobs).values(job).returning();
     return row;
@@ -222,6 +230,18 @@ export class DatabaseStorage implements IStorage {
   async updateApplication(id: number, application: Partial<InsertApplication>): Promise<Application> {
     const [row] = await db.update(applications).set(application).where(eq(applications.id, id)).returning();
     return row;
+  }
+
+  async getApplicationById(applicationId: number): Promise<Application | null> {
+    const [application] = await db.select()
+      .from(applications)
+      .where(eq(applications.id, applicationId));
+    return application || null;
+  }
+
+  async deleteApplication(applicationId: number): Promise<void> {
+    await db.delete(applications)
+      .where(eq(applications.id, applicationId));
   }
 
   async getEmailTemplates(): Promise<EmailTemplate[]> {
@@ -338,8 +358,83 @@ export class DatabaseStorage implements IStorage {
     await db.delete(assessmentTemplates).where(eq(assessmentTemplates.id, id));
   }
 
+  async getAssessmentTemplate(templateId: number): Promise<any> {
+    try {
+      console.log(`Fetching assessment template with ID: ${templateId}`);
+      const [template] = await db
+        .select()
+        .from(assessmentTemplates)
+        .where(eq(assessmentTemplates.id, templateId));
+      
+      if (!template) {
+        console.log(`Template not found for ID: ${templateId}`);
+        return null;
+      }
+      
+      console.log('Template found, fetching questions...');
+      const questions = await this.getAssessmentQuestions(templateId);
+      
+      // Format questions to ensure they have the expected structure
+      const formattedQuestions = questions.map(q => ({
+        ...q,
+        options: Array.isArray(q.options) ? q.options : (q.options ? [q.options] : []),
+        correctAnswers: Array.isArray(q.correctAnswers) ? q.correctAnswers : (q.correctAnswers ? [q.correctAnswers] : [])
+      }));
+      
+      return {
+        ...template,
+        questions: formattedQuestions
+      };
+    } catch (error) {
+      console.error('Error in getAssessmentTemplate:', error);
+      throw error;
+    }
+  }
+
   async getAssessmentQuestions(templateId: number): Promise<any[]> {
-    return await db.select().from(assessmentQuestions).where(eq(assessmentQuestions.templateId, templateId));
+    try {
+      console.log(`Fetching questions for template ID: ${templateId}`);
+      const questions = await db
+        .select()
+        .from(assessmentQuestions)
+        .where(eq(assessmentQuestions.templateId, templateId))
+        .orderBy(assessmentQuestions.orderIndex);
+      
+      console.log(`Found ${questions.length} questions for template ${templateId}`);
+      
+      // Ensure questions have properly formatted options and correctAnswers
+      return questions.map(question => ({
+        ...question,
+        options: question.options ? (Array.isArray(question.options) ? question.options : [question.options]) : [],
+        correctAnswers: question.correctAnswers ? (Array.isArray(question.correctAnswers) ? question.correctAnswers : [question.correctAnswers]) : []
+      }));
+    } catch (error) {
+      console.error('Error in getAssessmentQuestions:', error);
+      throw error;
+    }
+  }
+
+  async findAssessmentAttempt(candidateId: number, templateId: number, jobId: number): Promise<any> {
+    try {
+      const conditions = [
+        eq(assessmentAttempts.candidateId, candidateId),
+        eq(assessmentAttempts.templateId, templateId),
+        eq(assessmentAttempts.jobId, jobId),
+        eq(assessmentAttempts.status, 'in_progress')
+      ];
+
+      const [attempt] = await db
+        .select()
+        .from(assessmentAttempts)
+        .where(and(...conditions))
+        .orderBy(desc(assessmentAttempts.createdAt))
+        .limit(1);
+      
+      return attempt || null;
+    } catch (error) {
+      console.error('Error in findAssessmentAttempt:', error);
+      throw error;
+    }
   }
 
   async createAssessmentQuestion(templateId: number, data: any): Promise<any> {
@@ -357,8 +452,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getJobAssessments(jobId: number): Promise<any[]> {
-    return await db.select().from(jobAssessments).where(eq(jobAssessments.jobId, jobId));
+    const jobAssessmentsList = await db
+      .select({
+        job_assessments: {
+          id: jobAssessments.id,
+          jobId: jobAssessments.jobId,
+          templateId: jobAssessments.templateId,
+          isRequired: jobAssessments.isRequired,
+          createdAt: jobAssessments.createdAt
+        },
+        jobs: {
+          id: jobs.id,
+          title: jobs.title,
+          department: jobs.department,
+          location: jobs.location,
+          status: jobs.status,
+          description: jobs.description,
+          experienceLevel: jobs.experienceLevel,
+          createdAt: jobs.createdAt
+        }
+      })
+      .from(jobAssessments)
+      .leftJoin(jobs, eq(jobAssessments.jobId, jobs.id))
+      .where(eq(jobAssessments.jobId, jobId));
+    
+    // Transform the result to match the expected format
+    return jobAssessmentsList.map(item => ({
+      ...item.job_assessments,
+      job: item.jobs
+    }));
   }
+  
+
 
   async createJobAssessment(jobId: number, data: any): Promise<any> {
     const [row] = await db.insert(jobAssessments).values({ ...data, jobId }).returning();
@@ -370,18 +495,60 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPendingAssessments(candidateId: number): Promise<any[]> {
-    // Return all assessments assigned to candidate that are not completed/expired
-    // (This is a placeholder, you may want to join with job_assessments, etc.)
-    return await db.select().from(assessmentAttempts).where(and(eq(assessmentAttempts.candidateId, candidateId), eq(assessmentAttempts.status, "in_progress")));
+    try {
+      // Get all applications for the candidate
+      const applications = await this.getApplicationsByCandidate(candidateId);
+      if (applications.length === 0) return [];
+      
+      // Get all job assessments for these applications
+      const jobIds = [...new Set(applications.map(app => app.jobId))];
+      const allAssessments = [];
+      
+      for (const jobId of jobIds) {
+        const jobAssessments = await this.getJobAssessments(jobId);
+        allAssessments.push(...jobAssessments);
+      }
+      
+      // Get assessment templates and filter out any without templates
+      const assessmentsWithTemplates = [];
+      
+      for (const assessment of allAssessments) {
+        // Check if there's already an attempt for this assessment
+        const existingAttempt = await this.findAssessmentAttempt(
+          candidateId,
+          assessment.templateId,
+          assessment.jobId
+        );
+        
+        // Only include assessments that don't have a completed attempt
+        if (!existingAttempt || existingAttempt.status === 'in_progress') {
+          const template = await this.getAssessmentTemplate(assessment.templateId);
+          if (template) {
+            assessmentsWithTemplates.push({
+              ...assessment,
+              template,
+              jobId: assessment.jobId,
+              status: existingAttempt?.status || 'not_started',
+              attemptId: existingAttempt?.id
+            });
+          }
+        }
+      }
+      
+      return assessmentsWithTemplates;
+    } catch (error) {
+      console.error('Error in getPendingAssessments:', error);
+      throw error;
+    }
   }
 
-  async startAssessment(templateId: number, candidateId: number, jobId?: number): Promise<any> {
+  async startAssessment(templateId: number, candidateId: number, jobId?: number | undefined): Promise<any> {
     // Prevent multiple attempts
     const existing = await db.select().from(assessmentAttempts)
       .where(and(
         eq(assessmentAttempts.candidateId, candidateId),
         eq(assessmentAttempts.templateId, templateId),
-        jobId ? eq(assessmentAttempts.jobId, jobId) : undefined,
+        jobId !== undefined ? eq(assessmentAttempts.jobId, jobId) : isNull(assessmentAttempts.jobId),
         // Only allow if not completed/expired
         eq(assessmentAttempts.status, "in_progress")
       ));
@@ -552,86 +719,53 @@ export class DatabaseStorage implements IStorage {
     // Implement this method as needed for your logic
     return [];
   }
-
+export class DatabaseStorage {
   async searchResumes(query: string, filters: SearchFilters, page: number, limit: number): Promise<SearchResult> {
     let whereConditions = [];
     let joinExperience = false;
     let joinEducation = false;
     let joinSkills = false;
 
-    // Full-text search on resume text
     if (query) {
       whereConditions.push(
         sql`to_tsvector('english', ${candidates.resumeText}) @@ plainto_tsquery('english', ${query})`
       );
     }
 
-    // Profile filters
-    if (filters.firstName) {
-      whereConditions.push(ilike(candidates.firstName, `%${filters.firstName}%`));
-    }
-    if (filters.lastName) {
-      whereConditions.push(ilike(candidates.lastName, `%${filters.lastName}%`));
-    }
-    if (filters.city) {
-      whereConditions.push(ilike(candidates.city, `%${filters.city}%`));
-    }
-    if (filters.province) {
-      whereConditions.push(ilike(candidates.province, `%${filters.province}%`));
-    }
-    if (filters.cnic) {
-      whereConditions.push(ilike(candidates.cnic, `%${filters.cnic}%`));
-    }
-    if (filters.motivationLetter) {
-      whereConditions.push(ilike(candidates.motivationLetter, `%${filters.motivationLetter}%`));
-    }
+    if (filters.firstName) whereConditions.push(ilike(candidates.firstName, `%${filters.firstName}%`));
+    if (filters.lastName) whereConditions.push(ilike(candidates.lastName, `%${filters.lastName}%`));
+    if (filters.city) whereConditions.push(ilike(candidates.city, `%${filters.city}%`));
+    if (filters.province) whereConditions.push(ilike(candidates.province, `%${filters.province}%`));
+    if (filters.cnic) whereConditions.push(ilike(candidates.cnic, `%${filters.cnic}%`));
+    if (filters.motivationLetter) whereConditions.push(ilike(candidates.motivationLetter, `%${filters.motivationLetter}%`));
 
-    // Skills filter (join if present and non-empty)
-    if (filters.skills && Array.isArray(filters.skills) && filters.skills.length > 0) {
-      joinSkills = true;
-    }
+    if (filters.skills?.length) joinSkills = true;
+    if (filters.experience?.length) joinExperience = true;
+    if (filters.education?.length) joinEducation = true;
 
-    // Experience filter (join if present and non-empty)
-    if (filters.experience && Array.isArray(filters.experience) && filters.experience.length > 0) {
-      joinExperience = true;
-    }
-
-    // Education filter (join if present and non-empty)
-    if (filters.education && Array.isArray(filters.education) && filters.education.length > 0) {
-      joinEducation = true;
-    }
-
-    // Build the query
     let queryBuilder = db.select().from(candidates);
 
-    // Join skills if needed
     if (joinSkills) {
       queryBuilder = queryBuilder.leftJoin(skills, eq(skills.candidateId, candidates.id));
       whereConditions.push(
         or(...filters.skills.map(skill => ilike(skills.name, `%${skill}%`)))
       );
     }
-    // Join experience if needed
+
     if (joinExperience) {
       queryBuilder = queryBuilder.leftJoin(experience, eq(experience.candidateId, candidates.id));
       whereConditions.push(
         or(...filters.experience.map(exp =>
-          or(
-            ilike(experience.company, `%${exp}%`),
-            ilike(experience.role, `%${exp}%`)
-          )
+          or(ilike(experience.company, `%${exp}%`), ilike(experience.role, `%${exp}%`))
         ))
       );
     }
-    // Join education if needed
+
     if (joinEducation) {
       queryBuilder = queryBuilder.leftJoin(education, eq(education.candidateId, candidates.id));
       whereConditions.push(
         or(...filters.education.map(edu =>
-          or(
-            ilike(education.degree, `%${edu}%`),
-            ilike(education.institution, `%${edu}%`)
-          )
+          or(ilike(education.degree, `%${edu}%`), ilike(education.institution, `%${edu}%`))
         ))
       );
     }
@@ -640,36 +774,19 @@ export class DatabaseStorage implements IStorage {
       queryBuilder = queryBuilder.where(and(...whereConditions));
     }
 
-    // Debug: Log the query and filters
-    console.log('searchResumes filters:', JSON.stringify(filters));
-    console.log('searchResumes whereConditions:', whereConditions);
-    // Note: Drizzle ORM does not expose raw SQL easily, but this will show the filter structure.
-
-    // Get total count
+    // Count total
     let countQuery = db.select({ count: count() }).from(candidates);
-    if (joinSkills) {
-      countQuery = countQuery.leftJoin(skills, eq(skills.candidateId, candidates.id));
-    }
-    if (joinExperience) {
-      countQuery = countQuery.leftJoin(experience, eq(experience.candidateId, candidates.id));
-    }
-    if (joinEducation) {
-      countQuery = countQuery.leftJoin(education, eq(education.candidateId, candidates.id));
-    }
-    if (whereConditions.length > 0) {
-      countQuery = countQuery.where(and(...whereConditions));
-    }
+    if (joinSkills) countQuery = countQuery.leftJoin(skills, eq(skills.candidateId, candidates.id));
+    if (joinExperience) countQuery = countQuery.leftJoin(experience, eq(experience.candidateId, candidates.id));
+    if (joinEducation) countQuery = countQuery.leftJoin(education, eq(education.candidateId, candidates.id));
+    if (whereConditions.length > 0) countQuery = countQuery.where(and(...whereConditions));
     const totalResult = await countQuery;
     const total = totalResult[0]?.count || 0;
 
-    // Get paginated results
     const results = await queryBuilder
       .limit(limit)
       .offset((page - 1) * limit)
       .orderBy(desc(candidates.createdAt));
-
-    // Debug: Log the number of results
-    console.log('searchResumes results count:', results.length);
 
     return {
       candidates: results,
@@ -682,12 +799,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSearchSuggestions(query: string): Promise<string[]> {
-    // Get suggestions from recent search queries
-    const suggestions = await db.select({ query: searchQueries.query })
+    const suggestions = await db
+      .select({ query: searchQueries.query })
       .from(searchQueries)
       .where(ilike(searchQueries.query, `%${query}%`))
       .limit(5);
-
     return suggestions.map(s => s.query);
   }
 
@@ -701,7 +817,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSearchHistory(userId: number): Promise<SearchQuery[]> {
-    return await db.select()
+    return await db
+      .select()
       .from(searchQueries)
       .where(eq(searchQueries.createdBy, userId))
       .orderBy(desc(searchQueries.createdAt))
@@ -709,35 +826,96 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getApplication(id: number): Promise<Application | undefined> {
-    return await db.select().from(applications).where(eq(applications.id, id)).then(rows => rows[0]);
+    return await db
+      .select()
+      .from(applications)
+      .where(eq(applications.id, id))
+      .then(rows => rows[0]);
   }
 
   // Offers
   async getOffersByJob(jobId: number): Promise<Offer[]> {
     return await db.select().from(offers).where(eq(offers.jobId, jobId));
   }
+
   async getOffersByCandidate(candidateId: number): Promise<Offer[]> {
     return await db.select().from(offers).where(eq(offers.candidateId, candidateId));
   }
+
   async createOffer(offer: InsertOffer): Promise<Offer> {
     const [row] = await db.insert(offers).values(offer).returning();
     return row;
   }
+
   async updateOffer(id: number, offer: Partial<InsertOffer>): Promise<Offer> {
     const [row] = await db.update(offers).set(offer).where(eq(offers.id, id)).returning();
     return row;
   }
+
   // Job Costs
   async getJobCostsByJob(jobId: number): Promise<JobCost[]> {
     return await db.select().from(jobCosts).where(eq(jobCosts.jobId, jobId));
   }
+
   async createJobCost(cost: InsertJobCost): Promise<JobCost> {
     const [row] = await db.insert(jobCosts).values(cost).returning();
     return row;
   }
+
   async updateJobCost(id: number, cost: Partial<InsertJobCost>): Promise<JobCost> {
     const [row] = await db.update(jobCosts).set(cost).where(eq(jobCosts.id, id)).returning();
     return row;
+  }
+
+  // Assessments
+  async getAssessmentsByJob(jobId: number): Promise<any[]> {
+    const job = await this.getJobById(jobId);
+    const assessments = await db
+      .select()
+      .from(jobAssessments)
+      .leftJoin(assessmentTemplates, eq(jobAssessments.templateId, assessmentTemplates.id))
+      .where(eq(jobAssessments.jobId, jobId));
+
+    if (job?.assessmentTemplateId && assessments.length === 0) {
+      const template = await db
+        .select()
+        .from(assessmentTemplates)
+        .where(eq(assessmentTemplates.id, job.assessmentTemplateId))
+        .then(rows => rows[0]);
+
+      if (template) {
+        return [{ templateId: job.assessmentTemplateId, ...template, isRequired: true }];
+      }
+    }
+
+    return assessments.map(assessment => ({
+      ...assessment,
+      isRequired: assessment.isRequired ?? true
+    }));
+  }
+
+  async createAssessmentAttempt(data: {
+    templateId: number;
+    candidateId: number;
+    jobId: number | null;
+    startedAt: Date;
+  }): Promise<any> {
+    const [row] = await db.insert(assessmentAttempts).values(data).returning();
+    return row;
+  }
+
+  async getApplicationByCandidateAndJob(candidateId: number, jobId: number): Promise<Application | null> {
+    const [application] = await db
+      .select()
+      .from(applications)
+      .where(and(eq(applications.candidateId, candidateId), eq(applications.jobId, jobId)));
+    return application || null;
+  }
+
+  // Placeholder: Add getJobById if used by getAssessmentsByJob
+  async getJobById(id: number): Promise<Job | null> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    return job || null;
   }
 }
 

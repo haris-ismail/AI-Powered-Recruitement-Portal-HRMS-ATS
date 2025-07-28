@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,6 +14,7 @@ import EmailComposePage from "./pages/admin/email-compose";
 import CandidateProfile from "@/pages/candidate/profile";
 import CandidateJobs from "@/pages/candidate/jobs";
 import CandidateApplications from "@/pages/candidate/applications";
+import TakeAssessment from "@/pages/candidate/take-assessment";
 import AuthGuard from "@/components/auth-guard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ResumeSearchPage from "@/pages/admin/resume-search";
@@ -59,9 +60,24 @@ function Router() {
           <AdminDashboard />
         </AuthGuard>
       </Route>
+      <Route path="/assessment/:templateId">
+        {(params: any) => {
+          console.log('Route params:', params);
+          return (
+            <AuthGuard requiredRole="candidate">
+              <TakeAssessment />
+            </AuthGuard>
+          );
+        }}
+      </Route>
 
       {/* Candidate Routes */}
       <Route path="/candidate">
+        <AuthGuard requiredRole="candidate">
+          <Redirect to="/candidate/profile" />
+        </AuthGuard>
+      </Route>
+      <Route path="/candidate/profile">
         <AuthGuard requiredRole="candidate">
           <CandidateProfile />
         </AuthGuard>
@@ -74,6 +90,11 @@ function Router() {
       <Route path="/candidate/applications">
         <AuthGuard requiredRole="candidate">
           <CandidateApplications />
+        </AuthGuard>
+      </Route>
+      <Route path="/candidate/take-assessment">
+        <AuthGuard requiredRole="candidate">
+          <TakeAssessment />
         </AuthGuard>
       </Route>
 

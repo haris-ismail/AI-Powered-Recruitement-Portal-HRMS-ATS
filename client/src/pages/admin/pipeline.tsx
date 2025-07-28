@@ -262,19 +262,19 @@ export default function AdminPipeline() {
         <aside className="w-64 bg-white shadow-sm min-h-screen border-r border-gray-200">
           <nav className="p-4 space-y-2">
             <Link href="/admin">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <BarChart3 className="h-5 w-5" />
                 <span>Dashboard</span>
               </a>
             </Link>
             <Link href="/admin/jobs">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <Briefcase className="h-5 w-5" />
                 <span>Job Management</span>
               </a>
             </Link>
             <Link href="/admin/pipeline">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary text-white">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg bg-primary text-white">
                 <Users className="h-5 w-5" />
                 <span>Recruitment Pipeline</span>
               </a>
@@ -286,13 +286,13 @@ export default function AdminPipeline() {
               </a>
             </Link>
             <Link href="/admin/email-templates">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <Calendar className="h-5 w-5" />
                 <span>Email Templates</span>
               </a>
             </Link>
             <Link href="/admin/assessment-templates">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <FileText className="h-5 w-5" />
                 <span>Assessment Templates</span>
               </a>

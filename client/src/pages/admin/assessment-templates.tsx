@@ -434,27 +434,23 @@ export default function AssessmentTemplatesPage() {
         {/* Sidebar */}
         <aside className="w-64 bg-white shadow-sm min-h-screen border-r border-gray-200">
           <nav className="p-4 space-y-2">
-            <Link href="/admin" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+            <Link href="/admin" className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
               <BarChart3 className="h-5 w-5" />
               <span>Dashboard</span>
             </Link>
-            <Link href="/admin/jobs" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+            <Link href="/admin/jobs" className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
               <Briefcase className="h-5 w-5" />
               <span>Job Management</span>
             </Link>
-            <Link href="/admin/pipeline" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+            <Link href="/admin/pipeline" className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
               <Users className="h-5 w-5" />
               <span>Recruitment Pipeline</span>
             </Link>
-            <Link href="/admin/resume-search" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
-              <FileText className="h-5 w-5" />
-              <span>Resume Search</span>
-            </Link>
-            <Link href="/admin/email-templates" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+            <Link href="/admin/email-templates" className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
               <Calendar className="h-5 w-5" />
               <span>Email Templates</span>
             </Link>
-            <Link href="/admin/assessment-templates" className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary text-white">
+            <Link href="/admin/assessment-templates" className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg bg-primary text-white">
               <FileText className="h-5 w-5" />
               <span>Assessment Templates</span>
             </Link>

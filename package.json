@@ -4,12 +4,14 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "cross-env DATABASE_URL=postgresql://postgres:2162@localhost:5433/Nastp_db tsx server/index.ts",
+    "dev": "cross-env NODE_ENV=development PORT=5000 DATABASE_URL=postgresql://postgres:Pakistan@localhost:5432/nastp_hrms tsx server/index.ts",
+    "dev:server": "cross-env NODE_ENV=development PORT=5000 DATABASE_URL=postgresql://postgres:Pakistan@localhost:5432/nastp_hrms tsx server/index.ts",
+    "dev:client": "vite",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "check": "tsc",
-    "db:push": "cross-env DATABASE_URL=postgresql://postgres:2162@localhost:5433/Nastp_db drizzle-kit push",
-    "seed": "cross-env DATABASE_URL=postgresql://postgres:2162@localhost:5433/Nastp_db tsx server/seed.ts"
+    "db:push": "cross-env DATABASE_URL=postgresql://postgres:Pakistan@localhost:5432/nastp_hrms drizzle-kit push",
+    "seed": "cross-env DATABASE_URL=postgresql://postgres:Pakistan@localhost:5432/nastp_hrms tsx server/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -56,7 +58,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^3.6.0",
-    "dotenv": "^17.2.0",
+    "dotenv": "^17.2.1",
     "drizzle-orm": "^0.39.1",
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.6.0",
@@ -78,7 +80,7 @@
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.0",
     "react-day-picker": "^8.10.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "18.2.0",
     "react-hook-form": "^7.55.0",
     "react-icons": "^5.4.0",
     "react-resizable-panels": "^2.1.7",
@@ -92,6 +94,10 @@
     "ws": "^8.18.0",
     "zod": "^3.24.2",
     "zod-validation-error": "^3.4.0"
+  },
+  "resolutions": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",
@@ -108,6 +114,7 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.2.0",
     "cross-env": "^7.0.3",
     "dotenv-cli": "^8.0.0",
     "drizzle-kit": "^0.30.4",

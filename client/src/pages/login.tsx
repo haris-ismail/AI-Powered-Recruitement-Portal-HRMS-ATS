@@ -40,10 +40,22 @@ export default function Login() {
     const password = formData.get("password") as string;
 
     try {
-      const response = await apiRequest("POST", "/api/auth/login", {
-        email,
-        password,
+      console.log('Attempting login with:', { email });
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
       });
+
+      console.log('Login response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Login failed');
+      }
 
       const data = await response.json();
       
@@ -56,15 +68,16 @@ export default function Login() {
       });
 
       // Redirect based on role
-      if (data.user.role === "admin") {
+      if (data.user?.role === "admin") {
         navigate("/admin");
       } else {
-        navigate("/candidate");
+        navigate("/candidate/profile");
       }
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid credentials",
+        description: error.message || "Invalid credentials. Please check your email and password.",
         variant: "destructive",
       });
     } finally {
@@ -205,7 +218,7 @@ export default function Login() {
           <div className="form-wrapper">
             {showSignup ? (
               <form onSubmit={handleRegister} className="form">
-                <div className="form-fields">
+                <div className="form-fields-scrollable">
                   <label htmlFor="signup-email" className="form-label" style={{ width: '100%' }}>Email Address</label>
                   <input
                     id="signup-email"
@@ -215,6 +228,16 @@ export default function Login() {
                     required
                     className="form-input"
                     style={{ width: '100%' }}
+                  />
+                  <label htmlFor="signup-cnic" className="form-label">CNIC</label>
+                  <input
+                    id="signup-cnic"
+                    name="cnic"
+                    type="text"
+                    placeholder="12345678901234"
+                    required
+                    className="form-input"
+                    maxLength={14}
                   />
                   <label htmlFor="signup-password" className="form-label">Password</label>
                   <input
@@ -247,9 +270,9 @@ export default function Login() {
                     <a>Spacer</a>
                   </div>
                 </div>
-                <button type="submit" className="login-btn" disabled={loading}>
-                  {loading ? "Creating Account..." : "Create Account"}
-                </button>
+                  <button type="submit" className="login-btn" disabled={loading}>
+                    {loading ? "Creating Account..." : "Create Account"}
+                  </button>
                 <div className="signup-link">
                   <a onClick={() => setShowSignup(false)} style={{ cursor: "pointer" }}>Already have an account? Sign in</a>
                 </div>

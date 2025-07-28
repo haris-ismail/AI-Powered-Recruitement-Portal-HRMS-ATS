@@ -226,9 +226,7 @@ export default function AdminJobs() {
       field: jobFormData.field,
       requiredSkills: jobFormData.requiredSkills,
       description: jobFormData.description,
-    };
-    if (jobFormData.assessmentTemplateId) {
-      jobData.assessmentTemplateId = jobFormData.assessmentTemplateId;
+      assessmentTemplateId: jobFormData.assessmentTemplateId // Always include assessmentTemplateId
     }
 
     if (editingJob) {
@@ -319,19 +317,19 @@ export default function AdminJobs() {
         <aside className="w-64 bg-white shadow-sm min-h-screen border-r border-gray-200">
           <nav className="p-4 space-y-2">
             <Link href="/admin">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <BarChart3 className="h-5 w-5" />
                 <span>Dashboard</span>
               </a>
             </Link>
             <Link href="/admin/jobs">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary text-white">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg bg-primary text-white">
                 <Briefcase className="h-5 w-5" />
                 <span>Job Management</span>
               </a>
             </Link>
             <Link href="/admin/pipeline">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <Users className="h-5 w-5" />
                 <span>Recruitment Pipeline</span>
               </a>
@@ -343,13 +341,13 @@ export default function AdminJobs() {
               </a>
             </Link>
             <Link href="/admin/email-templates">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <Calendar className="h-5 w-5" />
                 <span>Email Templates</span>
               </a>
             </Link>
             <Link href="/admin/assessment-templates">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <FileText className="h-5 w-5" />
                 <span>Assessment Templates</span>
               </a>
@@ -407,7 +405,7 @@ export default function AdminJobs() {
                 <form onSubmit={handleJobSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <Label htmlFor="title">Job Title</Label>
+                      <Label htmlFor="title">Job Title<span className="text-red-500">&nbsp;*</span></Label>
                       <Input
                         id="title"
                         value={jobFormData.title}
@@ -417,7 +415,7 @@ export default function AdminJobs() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="department">Department</Label>
+                      <Label htmlFor="department">Department<span className="text-red-500">&nbsp;*</span></Label>
                       <Input
                         id="department"
                         value={jobFormData.department}
@@ -427,7 +425,7 @@ export default function AdminJobs() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="experienceLevel">Experience Level</Label>
+                      <Label htmlFor="experienceLevel">Experience Level<span className="text-red-500">&nbsp;*</span></Label>
                       <Select 
                         value={jobFormData.experienceLevel} 
                         onValueChange={(value) => setJobFormData({ ...jobFormData, experienceLevel: value })}
@@ -444,7 +442,7 @@ export default function AdminJobs() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="location">Location</Label>
+                      <Label htmlFor="location">Location<span className="text-red-500">&nbsp;*</span></Label>
                       <Input
                         id="location"
                         value={jobFormData.location}
@@ -454,7 +452,7 @@ export default function AdminJobs() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="salaryMin">Minimum Salary</Label>
+                      <Label htmlFor="salaryMin">Minimum Salary<span className="text-red-500">&nbsp;*</span></Label>
                       <Input
                         id="salaryMin"
                         type="number"
@@ -464,7 +462,7 @@ export default function AdminJobs() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="field">Field</Label>
+                      <Label htmlFor="field">Field<span className="text-red-500">&nbsp;*</span></Label>
                       <Input
                         id="field"
                         value={jobFormData.field}
@@ -476,7 +474,7 @@ export default function AdminJobs() {
                   </div>
 
                   <div>
-                    <Label htmlFor="requiredSkills">Required Skills</Label>
+                    <Label htmlFor="requiredSkills">Required Skills<span className="text-red-500">&nbsp;*</span></Label>
                     <Textarea
                       id="requiredSkills"
                       value={jobFormData.requiredSkills}
@@ -488,7 +486,7 @@ export default function AdminJobs() {
                   </div>
 
                   <div>
-                    <Label htmlFor="description">Job Description</Label>
+                    <Label htmlFor="description">Job Description<span className="text-red-500">&nbsp;*</span></Label>
                     <Textarea
                       id="description"
                       value={jobFormData.description}
