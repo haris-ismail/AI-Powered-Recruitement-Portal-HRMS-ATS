@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { setToken, getCurrentUser } from "@/lib/auth";
+import { setCsrfToken, getCurrentUser } from "@/lib/auth";
 import "./login-custom.css";
 import logo from "@/assets/NASTPLogo.png";
 import adminIcon from "@/assets/admin-icon.svg";
@@ -18,15 +18,18 @@ export default function Login() {
   const [activeTab, setActiveTab] = useState("admin");
   const [showSignup, setShowSignup] = useState(false);
 
-  const currentUser = getCurrentUser();
-  if (currentUser) {
-    if (currentUser.role === "admin") {
-      navigate("/admin");
-    } else {
-      navigate("/candidate");
-    }
-    return null;
-  }
+  // Check if user is already authenticated
+  useEffect(() => {
+    getCurrentUser().then(user => {
+      if (user) {
+        if (user.role === "admin") {
+          navigate("/admin");
+        } else {
+          navigate("/candidate");
+        }
+      }
+    });
+  }, [navigate]);
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -43,7 +46,9 @@ export default function Login() {
       });
 
       const data = await response.json();
-      setToken(data.token);
+      
+      // Store CSRF token (safe to store in localStorage)
+      setCsrfToken(data.csrfToken);
 
       toast({
         title: "Login successful",
@@ -137,7 +142,7 @@ export default function Login() {
       });
 
       const data = await response.json();
-      setToken(data.token);
+      setCsrfToken(data.csrfToken); // Assuming setCsrfToken is available here
 
       toast({
         title: "Registration successful",

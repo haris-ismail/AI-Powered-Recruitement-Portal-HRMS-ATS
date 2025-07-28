@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getCurrentUser, removeToken } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import { 
   BarChart3, 
   Briefcase, 
@@ -69,7 +69,7 @@ interface AssessmentTemplate {
 
 export default function AdminJobs() {
   const { toast } = useToast();
-  const user = getCurrentUser();
+  const { user, logout } = useAuth();
   const [showJobForm, setShowJobForm] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [editingJob, setEditingJob] = useState<any>(null);
@@ -238,9 +238,9 @@ export default function AdminJobs() {
     }
   };
 
-  const handleLogout = () => {
-    removeToken();
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/login';
   };
 
   const handleUseTemplate = (template: any) => {

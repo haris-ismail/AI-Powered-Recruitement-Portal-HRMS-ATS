@@ -1,5 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getToken } from "./auth";
+import { getCsrfToken } from "./auth";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -13,44 +13,47 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const token = getToken();
+  const csrfToken = getCsrfToken();
   const headers: Record<string, string> = {};
   
   if (data) {
     headers["Content-Type"] = "application/json";
   }
   
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  // Add CSRF token for non-GET requests
+  if (method !== 'GET' && csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
   }
   
   const res = await fetch(url, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    credentials: "include", // Include cookies
   });
 
   await throwIfResNotOk(res);
   return res;
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
+export type UnauthorizedBehavior = "redirect" | "returnNull" | "throw";
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const token = getToken();
+    const csrfToken = getCsrfToken();
     const headers: Record<string, string> = {};
     
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+    // Add CSRF token for non-GET requests
+    if (queryKey[0] !== 'GET' && csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
     }
     
     const res = await fetch(queryKey.join("/") as string, {
       headers,
-      credentials: "include",
+      credentials: "include", // Include cookies
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

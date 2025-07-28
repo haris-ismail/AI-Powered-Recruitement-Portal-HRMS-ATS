@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from 'react';
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getCurrentUser, removeToken } from "@/lib/auth";
+import { useAuthMigration } from '@/lib/auth-migration';
 import { 
   User, 
   Briefcase, 
@@ -45,7 +45,7 @@ interface Profile {
 
 export default function CandidateJobs() {
   const { toast } = useToast();
-  const user = getCurrentUser();
+  const { user, logout } = useAuthMigration();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [selectedExperience, setSelectedExperience] = useState("");
@@ -97,9 +97,9 @@ export default function CandidateJobs() {
     setApplyingJobId(null);
   };
 
-  const handleLogout = () => {
-    removeToken();
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/login';
   };
 
   const filteredJobs = jobs?.filter((job: any) => {

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, removeToken } from "@/lib/auth";
+import { useAuthMigration } from '@/lib/auth-migration';
 import { 
   User, 
   Briefcase, 
@@ -105,7 +105,7 @@ const PIPELINE_STAGES = [
 ];
 
 export default function CandidateApplications() {
-  const user = getCurrentUser();
+  const { user, logout } = useAuthMigration();
 
   const { data: applications, isLoading } = useQuery<Application[]>({
     queryKey: ["/api/applications"],
@@ -140,9 +140,9 @@ export default function CandidateApplications() {
     fetchAttempts();
   }, [applications]);
 
-  const handleLogout = () => {
-    removeToken();
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/login';
   };
 
   const getJobDetails = (jobId: number) => {

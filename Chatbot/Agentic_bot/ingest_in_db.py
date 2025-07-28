@@ -34,6 +34,7 @@ jobs_df = pd.read_sql("SELECT * FROM jobs", engine)
 applications_df = pd.read_sql("SELECT * FROM applications", engine)
 candidates_df = pd.read_sql("SELECT * FROM candidates", engine)
 
+
 # Base custom context
 # custom_data = """..."""  # (Same full NASTP data)
 

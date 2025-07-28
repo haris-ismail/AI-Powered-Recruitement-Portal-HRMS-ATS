@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/NASTPLogo.png";
 import { BarChart3, Briefcase, Users, Calendar, LogOut, Bell, FileText } from "lucide-react";
-import { getCurrentUser, removeToken } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 
 const initialFilters = {
   firstName: "",
@@ -28,9 +28,9 @@ export default function ResumeSearchPage() {
   const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
   const [showModal, setShowModal] = useState(false);
 
-  const user = getCurrentUser();
-  const handleLogout = () => {
-    removeToken();
+  const { user, logout } = useAuth();
+  const handleLogout = async () => {
+    await logout();
     window.location.href = "/login";
   };
 
@@ -66,11 +66,10 @@ export default function ResumeSearchPage() {
         experience: filters.experience ? filters.experience.split(",").map(s => s.trim()).filter(Boolean) : undefined,
         education: filters.education ? filters.education.split(",").map(s => s.trim()).filter(Boolean) : undefined,
       };
-      const token = localStorage.getItem('token');
       const res = await fetch('/api/candidate-search', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

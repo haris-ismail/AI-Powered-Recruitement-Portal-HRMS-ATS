@@ -8,8 +8,16 @@ import path from "path";
 import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema, type SearchFilters } from "@shared/schema";
 import { z } from "zod";
 import { spawn } from "child_process";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { applications, offers, jobCosts, users } from "@shared/schema";
+import crypto from "crypto";
+import { redisService } from "./redis";
+import { secretManager } from "./secrets";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+// Initialize secret manager
+const secrets = secretManager.initialize();
+const JWT_SECRET = secrets.jwtSecret;
 
 // Multer configuration for file uploads
 const storage_multer = multer.diskStorage({
@@ -64,22 +72,56 @@ const uploadPicture = multer({
   }
 });
 
-// Middleware to verify JWT token
-const authenticateToken = (req: any, res: any, next: any) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+// Middleware to verify JWT token from httpOnly cookies
+const authenticateToken = async (req: any, res: any, next: any) => {
+  try {
+    // First try to get token from httpOnly cookie
+    const token = req.cookies?.jwt_token;
+    
+    // Fallback to Authorization header for backward compatibility during migration
+    const authHeader = req.headers['authorization'];
+    const headerToken = authHeader && authHeader.split(' ')[1];
+    
+    const finalToken = token || headerToken;
 
-  if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) {
-      return res.status(403).json({ message: 'Invalid token' });
+    if (!finalToken) {
+      return res.status(401).json({ message: 'Access token required' });
     }
-    req.user = user;
-    next();
-  });
+
+    // Check if token is blacklisted
+    const isBlacklisted = await redisService.isTokenBlacklisted(finalToken);
+    if (isBlacklisted) {
+      return res.status(401).json({ message: 'Token has been revoked' });
+    }
+
+    jwt.verify(finalToken, JWT_SECRET, (err: any, user: any) => {
+      if (err) {
+        return res.status(403).json({ message: 'Invalid token' });
+      }
+      req.user = user;
+      next();
+    });
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(500).json({ message: 'Authentication failed' });
+  }
+};
+
+// CSRF protection middleware
+const csrfProtection = (req: any, res: any, next: any) => {
+  // Skip CSRF for GET requests and API endpoints that don't modify state
+  if (req.method === 'GET' || req.path.includes('/auth/')) {
+    return next();
+  }
+  
+  const csrfToken = req.headers['x-csrf-token'] || req.body._csrf;
+  const sessionToken = req.cookies?.csrf_token;
+  
+  if (!csrfToken || !sessionToken || csrfToken !== sessionToken) {
+    return res.status(403).json({ message: 'CSRF token validation failed' });
+  }
+  
+  next();
 };
 
 // Role-based access control
@@ -120,16 +162,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { expiresIn: '24h' }
       );
 
+      // Generate CSRF token
+      const csrfToken = crypto.randomBytes(32).toString('hex');
+
+      // Set httpOnly cookie with JWT token
+      res.cookie('jwt_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/'
+      });
+
+      // Set CSRF token as httpOnly cookie
+      res.cookie('csrf_token', csrfToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/'
+      });
+
+      // Return user data and CSRF token (not the JWT)
       res.json({ 
-        token, 
         user: { 
           id: user.id, 
           email: user.email, 
           role: user.role 
-        } 
+        },
+        csrfToken // Client needs this for CSRF protection
       });
-    } catch (error) {
-      res.status(500).json({ message: 'Server error' });
+    } catch (error: any) {
+      console.error('Login error:', error);
+      res.status(500).json({ message: 'Server error', details: error.message });
+    }
+  });
+
+  // Logout endpoint - blacklist the current token
+  app.post('/api/auth/logout', authenticateToken, async (req: any, res) => {
+    try {
+      const token = req.cookies?.jwt_token;
+      
+      if (token) {
+        // Blacklist the current token
+        await redisService.blacklistToken(token, 86400); // 24 hours
+        
+        // Invalidate user session
+        if (req.user?.id) {
+          await redisService.invalidateUserSession(req.user.id);
+        }
+      }
+
+      // Clear cookies
+      res.clearCookie('jwt_token', { path: '/' });
+      res.clearCookie('csrf_token', { path: '/' });
+
+      res.json({ message: 'Logged out successfully' });
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      res.status(500).json({ message: 'Logout failed' });
+    }
+  });
+
+  // Force logout all sessions for a user (admin only)
+  app.post('/api/auth/force-logout/:userId', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      
+      // Invalidate all sessions for the user
+      await redisService.invalidateUserSession(userId);
+      
+      res.json({ message: 'All sessions invalidated for user' });
+    } catch (error: any) {
+      console.error('Force logout error:', error);
+      res.status(500).json({ message: 'Force logout failed' });
     }
   });
 
@@ -177,13 +283,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { expiresIn: '24h' }
       );
 
+      // Generate CSRF token
+      const csrfToken = crypto.randomBytes(32).toString('hex');
+
+      // Set httpOnly cookie with JWT token
+      res.cookie('jwt_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/'
+      });
+
+      // Set CSRF token as httpOnly cookie
+      res.cookie('csrf_token', csrfToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/'
+      });
+
       res.status(201).json({ 
-        token, 
         user: { 
           id: user.id, 
           email: user.email, 
           role: user.role 
-        } 
+        },
+        csrfToken
       });
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -191,6 +318,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
       res.status(500).json({ message: 'Server error', details: error.message });
+    }
+  });
+
+  // Change password endpoint - invalidates all existing tokens
+  app.post('/api/auth/change-password', authenticateToken, async (req: any, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      const userId = req.user.id;
+
+      // Get user from database
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Verify current password
+      const validPassword = await bcrypt.compare(currentPassword, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ message: 'Current password is incorrect' });
+      }
+
+      // Hash new password
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update password in database
+      await db.update(users).set({ 
+        password: hashedNewPassword
+      }).where(eq(users.id, userId));
+
+      // Invalidate all existing sessions for this user
+      await redisService.invalidateUserSession(userId);
+
+      // Blacklist current token
+      const currentToken = req.cookies?.jwt_token;
+      if (currentToken) {
+        await redisService.blacklistToken(currentToken, 86400);
+      }
+
+      // Clear current session cookies
+      res.clearCookie('jwt_token', { path: '/' });
+      res.clearCookie('csrf_token', { path: '/' });
+
+      res.json({ message: 'Password changed successfully. Please login again.' });
+    } catch (error: any) {
+      console.error('Change password error:', error);
+      res.status(500).json({ message: 'Password change failed' });
     }
   });
 
@@ -378,6 +551,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ message: 'Failed to upload profile picture' });
     }
+  });
+
+  // Get current user endpoint
+  app.get('/api/auth/me', authenticateToken, (req: any, res) => {
+    res.json({
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role
+    });
+  });
+
+  // Logout endpoint
+  app.post('/api/auth/logout', (req, res) => {
+    // Clear JWT cookie
+    res.clearCookie('jwt_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+
+    // Clear CSRF cookie
+    res.clearCookie('csrf_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+
+    res.json({ message: 'Logged out successfully' });
   });
 
   // Job routes
@@ -1099,6 +1302,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files
   app.use('/uploads', (await import('express')).static('uploads'));
+
+  // Analytics Dashboard Endpoints
+  app.get('/api/dashboard/kpis', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const { startDate, endDate, department } = req.query;
+      const start = typeof startDate === 'string' ? startDate : undefined;
+      const end = typeof endDate === 'string' ? endDate : undefined;
+      const dept = typeof department === 'string' ? department : undefined;
+      let jobs = await storage.getJobs();
+      if (dept) {
+        jobs = jobs.filter((j: any) => j.department === dept);
+      }
+      const jobIds = jobs.map((j: any) => j.id);
+      const hiredRows = await db.select().from(applications).where(eq(applications.status, 'hired'));
+      const filteredHiredRows = hiredRows.filter((app: any) => jobIds.includes(app.jobId) &&
+        (!start || new Date(app.hiredAt) >= new Date(start)) &&
+        (!end || new Date(app.hiredAt) <= new Date(end)));
+      let avgTimeToHire = null;
+      if (filteredHiredRows.length > 0) {
+        const totalDays = filteredHiredRows.reduce((sum, app) => {
+          if (app.hiredAt && app.appliedAt) {
+            const diff = (new Date(app.hiredAt).getTime() - new Date(app.appliedAt).getTime()) / (1000 * 60 * 60 * 24);
+            return sum + diff;
+          }
+          return sum;
+        }, 0);
+        avgTimeToHire = totalDays / filteredHiredRows.length;
+      }
+      const offersRows = await db.select().from(offers);
+      const filteredOffersRows = offersRows.filter((o: any) => jobIds.includes(o.jobId) &&
+        (!start || new Date(o.offeredAt) >= new Date(start)) &&
+        (!end || new Date(o.offeredAt) <= new Date(end)));
+      let offerAcceptanceRate = null;
+      if (filteredOffersRows.length > 0) {
+        const accepted = filteredOffersRows.filter((o: any) => o.accepted).length;
+        offerAcceptanceRate = (accepted / filteredOffersRows.length) * 100;
+      }
+      const jobCostsRows = await db.select().from(jobCosts);
+      const filteredJobCostsRows = jobCostsRows.filter((jc: any) => jobIds.includes(jc.jobId) &&
+        (!start || new Date(jc.incurredAt) >= new Date(start)) &&
+        (!end || new Date(jc.incurredAt) <= new Date(end)));
+      let costPerHire = null;
+      if (filteredHiredRows.length > 0 && filteredJobCostsRows.length > 0) {
+        const totalCost = filteredJobCostsRows.reduce((sum, jc) => sum + (jc.cost || 0), 0);
+        costPerHire = totalCost / filteredHiredRows.length;
+      }
+      res.json({ totalJobs: jobs.length, totalHires: filteredHiredRows.length, avgTimeToHire, offerAcceptanceRate, costPerHire });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch KPIs', error: error?.message });
+    }
+  });
+
+  app.get('/api/dashboard/visuals/time-to-hire', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const { startDate, endDate, department } = req.query;
+      const start = typeof startDate === 'string' ? startDate : undefined;
+      const end = typeof endDate === 'string' ? endDate : undefined;
+      const dept = typeof department === 'string' ? department : undefined;
+      let jobs = await storage.getJobs();
+      if (dept) {
+        jobs = jobs.filter((j: any) => j.department === dept);
+      }
+      const jobIds = jobs.map((j: any) => j.id);
+      const hiredApps = await db.select().from(applications).where(eq(applications.status, 'hired'));
+      const filteredApps = hiredApps.filter((app: any) => jobIds.includes(app.jobId) &&
+        (!start || new Date(app.hiredAt) >= new Date(start)) &&
+        (!end || new Date(app.hiredAt) <= new Date(end)));
+      const trend: Record<string, number[]> = {};
+      for (const app of filteredApps) {
+        if (app.jobId && app.hiredAt && app.appliedAt) {
+          const diff = (new Date(app.hiredAt).getTime() - new Date(app.appliedAt).getTime()) / (1000 * 60 * 60 * 24);
+          if (!trend[app.jobId]) trend[app.jobId] = [];
+          trend[app.jobId].push(diff);
+        }
+      }
+      const result = Object.entries(trend).map(([jobId, arr]) => ({
+        jobId,
+        avgTimeToHire: arr.reduce((a, b) => a + b, 0) / arr.length
+      }));
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch time-to-hire trend', error: error?.message });
+    }
+  });
+
+  app.get('/api/dashboard/visuals/source-of-hire', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const { startDate, endDate, department } = req.query;
+      const start = typeof startDate === 'string' ? startDate : undefined;
+      const end = typeof endDate === 'string' ? endDate : undefined;
+      const dept = typeof department === 'string' ? department : undefined;
+      let jobs = await storage.getJobs();
+      if (dept) {
+        jobs = jobs.filter((j: any) => j.department === dept);
+      }
+      const jobIds = jobs.map((j: any) => j.id);
+      const hiredApps = await db.select().from(applications).where(eq(applications.status, 'hired'));
+      const filteredApps = hiredApps.filter((app: any) => jobIds.includes(app.jobId) &&
+        (!start || new Date(app.hiredAt) >= new Date(start)) &&
+        (!end || new Date(app.hiredAt) <= new Date(end)));
+      const sourceDist: Record<string, number> = {};
+      for (const app of filteredApps) {
+        if (app.source) {
+          sourceDist[app.source] = (sourceDist[app.source] || 0) + 1;
+        }
+      }
+      res.json(sourceDist);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch source-of-hire', error: error?.message });
+    }
+  });
+
+  app.get('/api/dashboard/visuals/offer-acceptance', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+      const { startDate, endDate, department } = req.query;
+      const start = typeof startDate === 'string' ? startDate : undefined;
+      const end = typeof endDate === 'string' ? endDate : undefined;
+      const dept = typeof department === 'string' ? department : undefined;
+      let jobs = await storage.getJobs();
+      if (dept) {
+        jobs = jobs.filter((j: any) => j.department === dept);
+      }
+      const jobIds = jobs.map((j: any) => j.id);
+      const allOffers = await db.select().from(offers);
+      const filteredOffers = allOffers.filter((offer: any) => jobIds.includes(offer.jobId) &&
+        (!start || new Date(offer.offeredAt) >= new Date(start)) &&
+        (!end || new Date(offer.offeredAt) <= new Date(end)));
+      const byJob: Record<string, { total: number, accepted: number }> = {};
+      for (const offer of filteredOffers) {
+        if (!byJob[offer.jobId]) byJob[offer.jobId] = { total: 0, accepted: 0 };
+        byJob[offer.jobId].total++;
+        if (offer.accepted) byJob[offer.jobId].accepted++;
+      }
+      const result = Object.entries(byJob).map(([jobId, { total, accepted }]) => ({
+        jobId,
+        acceptanceRate: total > 0 ? (accepted / total) * 100 : null
+      }));
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch offer acceptance rates', error: error?.message });
+    }
+  });
+
+  // --- Job Cost Management ---
+  app.get('/api/job-costs', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const jobId = parseInt(req.query.jobId);
+      if (isNaN(jobId)) {
+        return res.status(400).json({ message: 'Missing or invalid jobId' });
+      }
+      const costs = await storage.getJobCostsByJob(jobId);
+      res.json(costs);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error?.message });
+    }
+  });
+
+  app.post('/api/job-costs', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const costData = req.body;
+      // Validate input (jobId, cost, description)
+      if (!costData.jobId || typeof costData.cost !== 'number') {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+      const created = await storage.createJobCost(costData);
+      res.status(201).json(created);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error?.message });
+    }
+  });
+
+  app.put('/api/job-costs/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid cost id' });
+      }
+      const updated = await storage.updateJobCost(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error?.message });
+    }
+  });
+
+  // Health check endpoint
+  app.get('/api/health', async (req, res) => {
+    try {
+      const redisHealth = await redisService.healthCheck();
+      
+      res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        services: {
+          database: 'connected',
+          redis: redisHealth ? 'connected' : 'disconnected (fallback mode)'
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'unhealthy',
+        timestamp: new Date().toISOString(),
+        error: 'Health check failed'
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

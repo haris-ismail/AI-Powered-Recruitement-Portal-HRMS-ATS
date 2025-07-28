@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getCurrentUser, removeToken } from "@/lib/auth";
+import { getCurrentUser, logout } from "@/lib/auth";
 import { 
   BarChart3, 
   Briefcase, 
@@ -37,7 +37,11 @@ interface EmailTemplate {
 
 export default function AdminEmailTemplates() {
   const { toast } = useToast();
-  const user = getCurrentUser();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    getCurrentUser().then(setUser);
+  }, []);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [templateFormData, setTemplateFormData] = useState({
     name: "",
@@ -77,8 +81,8 @@ export default function AdminEmailTemplates() {
     await createTemplateMutation.mutateAsync(templateFormData);
   };
 
-  const handleLogout = () => {
-    removeToken();
+  const handleLogout = async () => {
+    await logout();
     window.location.href = "/login";
   };
 

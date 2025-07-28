@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, removeToken } from "@/lib/auth";
+import { useAuthMigration } from '@/lib/auth-migration';
 import { 
   BarChart3, 
   Briefcase, 
@@ -17,6 +17,9 @@ import {
   FileText
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
+import { Bar, Line, Pie } from 'react-chartjs-2';
+import { Chart, CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend } from 'chart.js';
+Chart.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend);
 
 // Add these interfaces at the top of the file
 interface Application {
@@ -48,11 +51,56 @@ interface Stats {
 
 export default function AdminDashboard() {
   const [, navigate] = useLocation();
-  const user = getCurrentUser();
+  const { user, logout } = useAuthMigration();
 
-  const { data: stats } = useQuery<Stats>({
-    queryKey: ["/api/admin/stats"],
+  // Fetch new analytics KPIs
+  const { data: kpis } = useQuery<any>({
+    queryKey: ['/api/dashboard/kpis'],
   });
+  // Fetch chart data
+  const { data: timeToHireData } = useQuery<any[]>({
+    queryKey: ['/api/dashboard/visuals/time-to-hire'],
+  });
+  const { data: sourceOfHireData } = useQuery<any>({
+    queryKey: ['/api/dashboard/visuals/source-of-hire'],
+  });
+  const { data: offerAcceptanceData } = useQuery<any[]>({
+    queryKey: ['/api/dashboard/visuals/offer-acceptance'],
+  });
+
+  // Prepare chart data
+  const timeToHireChart = timeToHireData ? {
+    labels: timeToHireData.map((d: any) => `Job #${d.jobId}`),
+    datasets: [{
+      label: 'Avg. Time to Hire (days)',
+      data: timeToHireData.map((d: any) => d.avgTimeToHire),
+      backgroundColor: 'rgba(99, 102, 241, 0.6)',
+    }],
+  } : undefined;
+
+  const sourceOfHireChart = sourceOfHireData ? {
+    labels: Object.keys(sourceOfHireData),
+    datasets: [{
+      label: 'Source of Hire',
+      data: Object.values(sourceOfHireData),
+      backgroundColor: [
+        'rgba(99, 102, 241, 0.6)',
+        'rgba(16, 185, 129, 0.6)',
+        'rgba(251, 191, 36, 0.6)',
+        'rgba(239, 68, 68, 0.6)',
+        'rgba(139, 92, 246, 0.6)'
+      ],
+    }],
+  } : undefined;
+
+  const offerAcceptanceChart = offerAcceptanceData ? {
+    labels: offerAcceptanceData.map((d: any) => `Job #${d.jobId}`),
+    datasets: [{
+      label: 'Offer Acceptance Rate (%)',
+      data: offerAcceptanceData.map((d: any) => d.acceptanceRate),
+      backgroundColor: 'rgba(16, 185, 129, 0.6)',
+    }],
+  } : undefined;
 
   const { data: applications } = useQuery<Application[]>({
     queryKey: ["/api/applications"],
@@ -62,8 +110,8 @@ export default function AdminDashboard() {
     queryKey: ["/api/jobs"],
   });
 
-  const handleLogout = () => {
-    removeToken();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 
@@ -145,78 +193,53 @@ export default function AdminDashboard() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Dashboard Overview</h2>
             <p className="text-gray-600">Recruitment analytics and key metrics</p>
           </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Active Jobs</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats?.activeJobs || 0}</p>
-                  </div>
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Briefcase className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center">
-                  <ChevronUp className="h-4 w-4 text-green-600 mr-1" />
-                  <span className="text-sm text-green-600 font-medium">+12% from last month</span>
-                </div>
+                <p className="text-sm font-medium text-gray-600">Jobs Posted</p>
+                <p className="text-3xl font-bold text-gray-900">{kpis?.totalJobs ?? '-'}</p>
               </CardContent>
             </Card>
-
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Applications</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats?.totalApplications || 0}</p>
-                  </div>
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <Users className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center">
-                  <ChevronUp className="h-4 w-4 text-green-600 mr-1" />
-                  <span className="text-sm text-green-600 font-medium">+8% from last month</span>
-                </div>
+                <p className="text-sm font-medium text-gray-600">Total Hires</p>
+                <p className="text-3xl font-bold text-gray-900">{kpis?.totalHires ?? '-'}</p>
               </CardContent>
             </Card>
-
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Interviews Scheduled</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats?.interviews || 0}</p>
-                  </div>
-                  <div className="p-3 bg-yellow-100 rounded-lg">
-                    <Calendar className="h-6 w-6 text-yellow-600" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center">
-                  <span className="text-sm text-red-600 font-medium">-3% from last month</span>
-                </div>
+                <p className="text-sm font-medium text-gray-600">Avg. Time to Hire</p>
+                <p className="text-3xl font-bold text-gray-900">{kpis?.avgTimeToHire ? kpis.avgTimeToHire.toFixed(1) : '-'}</p>
+                <span className="text-sm text-gray-500">days</span>
               </CardContent>
             </Card>
-
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Avg. Time to Hire</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats?.timeToHire || 0}</p>
-                    <span className="text-sm text-gray-500">days</span>
-                  </div>
-                  <div className="p-3 bg-purple-100 rounded-lg">
-                    <Clock className="h-6 w-6 text-purple-600" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center">
-                  <span className="text-sm text-green-600 font-medium">-2 days improved</span>
-                </div>
+                <p className="text-sm font-medium text-gray-600">Offer Acceptance Rate</p>
+                <p className="text-3xl font-bold text-gray-900">{kpis?.offerAcceptanceRate ? kpis.offerAcceptanceRate.toFixed(1) : '-'}%</p>
               </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <p className="text-sm font-medium text-gray-600">Cost per Hire</p>
+                <p className="text-3xl font-bold text-gray-900">{kpis?.costPerHire ? `Rs. ${kpis.costPerHire.toLocaleString()}` : '-'}</p>
+              </CardContent>
+            </Card>
+          </div>
+          {/* Analytics Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <Card>
+              <CardHeader><CardTitle>Time-to-Hire Trend</CardTitle></CardHeader>
+              <CardContent>{timeToHireChart ? <Bar data={timeToHireChart} /> : <p>Loading...</p>}</CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Source of Hire</CardTitle></CardHeader>
+              <CardContent>{sourceOfHireChart ? <Pie data={sourceOfHireChart} /> : <p>Loading...</p>}</CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Offer Acceptance Rate</CardTitle></CardHeader>
+              <CardContent>{offerAcceptanceChart ? <Bar data={offerAcceptanceChart} /> : <p>Loading...</p>}</CardContent>
             </Card>
           </div>
 

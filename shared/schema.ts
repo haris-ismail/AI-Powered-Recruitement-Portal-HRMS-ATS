@@ -91,6 +91,8 @@ export const applications = pgTable("applications", {
   ai_score: integer("ai_score"), // AI score (0-100)
   ai_score_breakdown: json("ai_score_breakdown"), // JSON breakdown of scores
   red_flags: text("red_flags"), // Red flag text
+  hiredAt: timestamp("hired_at"), // New: when candidate was hired
+  source: text("source"), // New: source of application
 });
 
 export const emailTemplates = pgTable("email_templates", {
@@ -203,6 +205,23 @@ export const searchQueries = pgTable("search_queries", {
   resultsCount: integer("results_count"),
   createdBy: integer("created_by").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const offers = pgTable("offers", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  offeredAt: timestamp("offered_at").defaultNow(),
+  accepted: boolean("accepted").default(false),
+  acceptedAt: timestamp("accepted_at"), // Optional: when offer was accepted
+});
+
+export const jobCosts = pgTable("job_costs", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").references(() => jobs.id).notNull(),
+  cost: integer("cost").notNull(), // Use integer for simplicity; change to float if needed
+  description: text("description"), // Optional: description of cost
+  incurredAt: timestamp("incurred_at").defaultNow(),
 });
 
 // Relations
@@ -377,6 +396,10 @@ export type Skill = typeof skills.$inferSelect;
 export type InsertSkill = z.infer<typeof insertSkillSchema>;
 export type SearchQuery = typeof searchQueries.$inferSelect;
 export type InsertSearchQuery = z.infer<typeof insertSearchQuerySchema>;
+export type Offer = typeof offers.$inferSelect;
+export type InsertOffer = z.infer<ReturnType<typeof createInsertSchema<typeof offers>>>;
+export type JobCost = typeof jobCosts.$inferSelect;
+export type InsertJobCost = z.infer<ReturnType<typeof createInsertSchema<typeof jobCosts>>>;
 
 // Search-related types
 export interface SearchFilters {

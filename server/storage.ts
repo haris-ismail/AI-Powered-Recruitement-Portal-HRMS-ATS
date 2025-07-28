@@ -8,7 +8,8 @@ import {
   type CandidateReview, type InsertCandidateReview,
   type Skill, type InsertSkill,
   assessmentCategories, assessmentTemplates, assessmentQuestions, jobAssessments, assessmentAttempts,
-  assessmentAnswers, searchQueries, type SearchQuery, type InsertSearchQuery, type SearchFilters, type SearchResult
+  assessmentAnswers, searchQueries, type SearchQuery, type InsertSearchQuery, type SearchFilters, type SearchResult,
+  offers, jobCosts, type InsertOffer, type Offer, type InsertJobCost, type JobCost
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, like, ilike, or, sql, count } from "drizzle-orm";
@@ -86,6 +87,15 @@ export interface IStorage {
   saveSearchQuery(query: string, filters: SearchFilters, resultsCount: number, userId: number): Promise<void>;
   getSearchHistory(userId: number): Promise<SearchQuery[]>;
   getApplication(id: number): Promise<Application | undefined>;
+  // Offers
+  getOffersByJob(jobId: number): Promise<Offer[]>;
+  getOffersByCandidate(candidateId: number): Promise<Offer[]>;
+  createOffer(offer: InsertOffer): Promise<Offer>;
+  updateOffer(id: number, offer: Partial<InsertOffer>): Promise<Offer>;
+  // Job Costs
+  getJobCostsByJob(jobId: number): Promise<JobCost[]>;
+  createJobCost(cost: InsertJobCost): Promise<JobCost>;
+  updateJobCost(id: number, cost: Partial<InsertJobCost>): Promise<JobCost>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -700,6 +710,34 @@ export class DatabaseStorage implements IStorage {
 
   async getApplication(id: number): Promise<Application | undefined> {
     return await db.select().from(applications).where(eq(applications.id, id)).then(rows => rows[0]);
+  }
+
+  // Offers
+  async getOffersByJob(jobId: number): Promise<Offer[]> {
+    return await db.select().from(offers).where(eq(offers.jobId, jobId));
+  }
+  async getOffersByCandidate(candidateId: number): Promise<Offer[]> {
+    return await db.select().from(offers).where(eq(offers.candidateId, candidateId));
+  }
+  async createOffer(offer: InsertOffer): Promise<Offer> {
+    const [row] = await db.insert(offers).values(offer).returning();
+    return row;
+  }
+  async updateOffer(id: number, offer: Partial<InsertOffer>): Promise<Offer> {
+    const [row] = await db.update(offers).set(offer).where(eq(offers.id, id)).returning();
+    return row;
+  }
+  // Job Costs
+  async getJobCostsByJob(jobId: number): Promise<JobCost[]> {
+    return await db.select().from(jobCosts).where(eq(jobCosts.jobId, jobId));
+  }
+  async createJobCost(cost: InsertJobCost): Promise<JobCost> {
+    const [row] = await db.insert(jobCosts).values(cost).returning();
+    return row;
+  }
+  async updateJobCost(id: number, cost: Partial<InsertJobCost>): Promise<JobCost> {
+    const [row] = await db.update(jobCosts).set(cost).where(eq(jobCosts.id, id)).returning();
+    return row;
   }
 }
 

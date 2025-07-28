@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, BarChart3, Briefcase, Users, Calendar, LogOut, Bell } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
 import { Link } from "wouter";
-import { getCurrentUser } from "@/lib/auth";
+import { useAuthMigration } from "@/lib/auth-migration";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -53,9 +53,9 @@ function QuestionManagerModal({ templateId, open, onClose }: { templateId: numbe
   useEffect(() => {
     if (open && templateId) {
       setLoading(true);
-      const token = localStorage.getItem("token");
       fetch(`/api/assessment-templates/${templateId}/questions`, {
-        headers: { "Authorization": `Bearer ${token}` },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
       })
         .then(res => res.json())
         .then(data => setQuestions(Array.isArray(data) ? data : []))
@@ -86,7 +86,7 @@ function QuestionManagerModal({ templateId, open, onClose }: { templateId: numbe
   const handleAddQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const token = localStorage.getItem("token");
+    
     if (!form.questionText || !form.questionType || !form.points) {
       setError("Please fill all required fields.");
       return;
@@ -119,11 +119,11 @@ function QuestionManagerModal({ templateId, open, onClose }: { templateId: numbe
     }
     // No extra fields for short_answer
     setLoading(true);
-    const res = await fetch(`/api/assessment-templates/${templateId}/questions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify(payload),
-    });
+          const res = await fetch(`/api/assessment-templates/${templateId}/questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
     if (res.ok) {
       const newQ = await res.json();
       setQuestions([...questions, newQ]);
@@ -140,11 +140,11 @@ function QuestionManagerModal({ templateId, open, onClose }: { templateId: numbe
 
   // Delete question
   const handleDelete = async (id: number) => {
-    const token = localStorage.getItem("token");
+    
     setLoading(true);
     await fetch(`/api/assessment-questions/${id}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
     });
     setQuestions(questions.filter(q => q.id !== id));
     setLoading(false);
@@ -280,6 +280,7 @@ function QuestionManagerModal({ templateId, open, onClose }: { templateId: numbe
 }
 
 export default function AssessmentTemplatesPage() {
+  const { user, logout } = useAuthMigration();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [form, setForm] = useState<Partial<Template>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -294,10 +295,10 @@ export default function AssessmentTemplatesPage() {
 
   const fetchTemplates = async () => {
     setLoading(true);
-    const token = localStorage.getItem("token");
+    
     const res = await fetch("/api/assessment-templates", {
       headers: {
-        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
     });
     const data = await res.json();
@@ -307,9 +308,9 @@ export default function AssessmentTemplatesPage() {
 
   const fetchCategories = async () => {
     setCategoryLoading(true);
-    const token = localStorage.getItem("token");
+    
     const res = await fetch("/api/assessment-categories", {
-      headers: { "Authorization": `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
     });
     const data = await res.json();
     setCategories(Array.isArray(data) ? data : []);
@@ -324,12 +325,12 @@ export default function AssessmentTemplatesPage() {
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
-    const res = await fetch("/api/assessment-categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify(newCategory),
-    });
+    
+          const res = await fetch("/api/assessment-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCategory),
+      });
     const data = await res.json();
     setShowCategoryModal(false);
     setNewCategory({ name: "", description: "" });
@@ -340,8 +341,8 @@ export default function AssessmentTemplatesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
-    const user = getCurrentUser();
+    
+    // user is already available from useAuthMigration hook
     // Prevent submission if categoryId is missing
     if (!form.categoryId) {
       alert("Please select a category.");
@@ -349,18 +350,18 @@ export default function AssessmentTemplatesPage() {
     }
     let newTemplateId: number | null = null;
     if (editingId) {
-      await fetch(`/api/assessment-templates/${editingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ ...form, categoryId: Number(form.categoryId), createdBy: user?.id }),
-      });
+              await fetch(`/api/assessment-templates/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, categoryId: Number(form.categoryId), createdBy: user?.id }),
+        });
       newTemplateId = editingId;
     } else {
-      const res = await fetch(`/api/assessment-templates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ ...form, categoryId: Number(form.categoryId), createdBy: user?.id }),
-      });
+              const res = await fetch(`/api/assessment-templates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, categoryId: Number(form.categoryId), createdBy: user?.id }),
+        });
       const data = await res.json();
       newTemplateId = data.id;
     }
@@ -379,8 +380,8 @@ export default function AssessmentTemplatesPage() {
   };
 
   const handleDelete = async (id: number) => {
-    const token = localStorage.getItem("token");
-    await fetch(`/api/assessment-templates/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+    
+    await fetch(`/api/assessment-templates/${id}`, { method: "DELETE", headers: { "Content-Type": "application/json" } });
     fetchTemplates();
   };
 
@@ -398,9 +399,10 @@ export default function AssessmentTemplatesPage() {
     setEditingId(null); // New template, not editing existing
   };
 
-  const user = getCurrentUser();
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+
+
+  const handleLogout = async () => {
+    await logout();
     window.location.href = "/login";
   };
   return (

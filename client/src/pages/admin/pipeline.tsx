@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getCurrentUser, removeToken, isAdmin } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import CandidateProfileCard from "@/components/candidate-profile-card";
 import { 
   BarChart3, 
@@ -63,8 +63,10 @@ const PIPELINE_STAGES = [
 
 export default function AdminPipeline() {
   console.log("AdminPipeline component is rendering"); // Debug log
+  
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const { toast } = useToast();
-  const user = getCurrentUser();
+  const { user, logout } = useAuth();
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [assessmentFilter, setAssessmentFilter] = useState<string>("");
   const [assessmentData, setAssessmentData] = useState<Record<number, AssessmentInfo>>({}); // candidateId -> info
@@ -77,21 +79,6 @@ export default function AdminPipeline() {
   const [weightLoading, setWeightLoading] = useState(false);
   const [weightError, setWeightError] = useState("");
 
-  console.log("Current user:", user); // Debug log
-  console.log("User role:", user?.role); // Debug log
-  console.log("Is admin:", isAdmin()); // Debug log
-
-  // Check if user is authenticated and is admin
-  if (!user) {
-    console.error("No user found");
-    return <div>Loading...</div>;
-  }
-
-  if (user.role !== 'admin') {
-    console.error("User is not admin:", user.role);
-    return <div>Access denied. Admin role required.</div>;
-  }
-
   const { data: jobs, error: jobsError } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
     retry: false,
@@ -101,6 +88,27 @@ export default function AdminPipeline() {
     queryKey: [`/api/admin/applications/${selectedJobId}`],
     enabled: !!selectedJobId,
     retry: false,
+  });
+
+  const updateApplicationMutation = useMutation({
+    mutationFn: async ({ applicationId, status }: { applicationId: number; status: string }) => {
+      const response = await apiRequest("PUT", `/api/applications/${applicationId}`, { status });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Application status updated successfully",
+      });
+      refetchApplications();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update application status",
+        variant: "destructive",
+      });
+    },
   });
 
   useEffect(() => {
@@ -126,33 +134,27 @@ export default function AdminPipeline() {
     fetchAssessments();
   }, [applications]);
 
+  console.log("Current user:", user); // Debug log
+  console.log("User role:", user?.role); // Debug log
+  console.log("Is admin:", user?.role === 'admin'); // Debug log
+
+  // Check if user is authenticated and is admin - AFTER ALL HOOKS
+  if (!user) {
+    console.error("No user found");
+    return <div>Loading...</div>;
+  }
+
+  if (user.role !== 'admin') {
+    console.error("User is not admin:", user.role);
+    return <div>Access denied. Admin role required.</div>;
+  }
+
   // Log any errors
   if (jobsError) console.error("Jobs error:", jobsError);
   if (applicationsError) console.error("Applications error:", applicationsError);
 
   console.log("Jobs data:", jobs); // Debug log
   console.log("Applications data:", applications); // Debug log
-
-  const updateApplicationMutation = useMutation({
-    mutationFn: async ({ applicationId, status }: { applicationId: number; status: string }) => {
-      const response = await apiRequest("PUT", `/api/applications/${applicationId}`, { status });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Application status updated successfully",
-      });
-      refetchApplications();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update application status",
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleStatusChange = (applicationId: number, newStatus: string) => {
     updateApplicationMutation.mutate({ applicationId, status: newStatus });
@@ -165,8 +167,8 @@ export default function AdminPipeline() {
     });
   };
 
-  const handleLogout = () => {
-    removeToken();
+  const handleLogout = async () => {
+    await logout();
     window.location.href = "/login";
   };
 

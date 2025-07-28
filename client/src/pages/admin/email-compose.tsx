@@ -30,7 +30,10 @@ export default function EmailComposePage() {
   // Fetch candidate info
   useEffect(() => {
     if (candidateId) {
-      fetch(`/api/candidates/${candidateId}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      fetch(`/api/candidates/${candidateId}`, { 
+        credentials: "include",
+        headers: { "Content-Type": "application/json" }
+      })
         .then(res => res.json())
         .then(data => {
           console.log("Fetched candidate:", data);
@@ -45,7 +48,10 @@ export default function EmailComposePage() {
 
   // Fetch templates
   useEffect(() => {
-    fetch("/api/email-templates", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+    fetch("/api/email-templates", { 
+      credentials: "include",
+      headers: { "Content-Type": "application/json" }
+    })
       .then(res => res.json())
       .then(data => {
         console.log("Fetched templates:", data);

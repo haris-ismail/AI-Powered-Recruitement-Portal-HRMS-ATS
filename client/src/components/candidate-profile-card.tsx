@@ -5,7 +5,7 @@ import { User, Mail, Calendar, MapPin, GraduationCap, Briefcase, FileText, Star,
 import { useState } from "react";
 import EmailTemplateSelectModal from "./email-template-select-modal";
 import { useLocation } from "wouter";
-import { isAdmin, getCurrentUser } from "@/lib/auth";
+import { useAuthMigration } from "@/lib/auth-migration";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Slider } from "@/components/ui/slider";
@@ -71,6 +71,7 @@ export default function CandidateProfileCard({
   onStatusChange, 
   onSendEmail 
 }: CandidateProfileCardProps) {
+  const { user } = useAuthMigration();
   const getStatusColor = (status: string) => {
     switch (status) {
       case "applied": return "bg-blue-100 text-blue-800";
@@ -122,12 +123,10 @@ export default function CandidateProfileCard({
   const [regenError, setRegenError] = useState("");
   const [regenResult, setRegenResult] = useState<any>(null);
 
-  const user = getCurrentUser();
-
   // Fetch notes (admin only)
   const { data: notes, refetch: refetchNotes, error: notesError } = useQuery({
     queryKey: ["/api/candidates", candidate.id, "notes"],
-    enabled: isAdmin(),
+    enabled: user?.role === 'admin',
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/candidates/${candidate.id}/notes`);
       return res.json();
@@ -138,7 +137,7 @@ export default function CandidateProfileCard({
   // Fetch reviews (admin only)
   const { data: reviews, refetch: refetchReviews, error: reviewsError } = useQuery({
     queryKey: ["/api/applications", application.id, "reviews"],
-    enabled: isAdmin(),
+    enabled: user?.role === 'admin',
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/applications/${application.id}/reviews`);
       return res.json();
@@ -386,7 +385,7 @@ export default function CandidateProfileCard({
         </div>
 
         {/* Reviews Section */}
-        {isAdmin() && (
+        {user?.role === 'admin' && (
           <div className="mt-6">
             {reviewsError && (
               <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded">
@@ -478,7 +477,7 @@ export default function CandidateProfileCard({
         )}
 
         {/* Admin Notes Section */}
-        {isAdmin() && (
+        {user?.role === 'admin' && (
           <div className="mt-6">
             {notesError && (
               <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded">

@@ -16,7 +16,7 @@ export default function EmailTemplateSelectModal({ candidate, onClose }: { candi
   const [showDraft, setShowDraft] = useState(false);
 
   useEffect(() => {
-    fetch("/api/email-templates", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+    fetch("/api/email-templates", { credentials: "include" })
       .then(res => res.json())
       .then(data => {
         setTemplates(data);

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getCurrentUser, removeToken } from "@/lib/auth";
+import { getCurrentUser, logout } from "@/lib/auth";
 import { 
   User, 
   Briefcase, 
@@ -126,8 +126,13 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
 
 export default function CandidateProfile() {
   const { toast } = useToast();
-  const user = getCurrentUser();
+  const [user, setUser] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load user data on component mount
+  useEffect(() => {
+    getCurrentUser().then(setUser);
+  }, []);
   
   // Add CNIC to profileData state
   const [profileData, setProfileData] = useState({
@@ -315,9 +320,7 @@ export default function CandidateProfile() {
     mutationFn: async (formData: FormData) => {
       const response = await fetch("/api/upload-resume", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`
-        },
+        credentials: "include",
         body: formData
       });
       if (!response.ok) throw new Error("Upload failed");
@@ -347,9 +350,7 @@ export default function CandidateProfile() {
     mutationFn: async (formData: FormData) => {
       const response = await fetch("/api/upload-profile-picture", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`
-        },
+        credentials: "include",
         body: formData
       });
       if (!response.ok) throw new Error("Upload failed");
@@ -476,8 +477,8 @@ export default function CandidateProfile() {
     }
   };
 
-  const handleLogout = () => {
-    removeToken();
+  const handleLogout = async () => {
+    await logout();
     window.location.href = "/login";
   };
 

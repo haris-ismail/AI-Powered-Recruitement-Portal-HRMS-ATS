@@ -2,6 +2,7 @@ import { db } from "./db";
 import { users, emailTemplates } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
+import { jobs, candidates, applications, offers, jobCosts } from "@shared/schema";
 
 async function seedAdminUser() {
   try {
@@ -65,9 +66,98 @@ async function seedEmailTemplates() {
   }
 }
 
+async function seedAnalyticsDemo() {
+  // Insert jobs
+  const [job1] = await db.insert(jobs).values({
+    title: "Software Engineer",
+    department: "Engineering",
+    experienceLevel: "Mid",
+    location: "Remote",
+    field: "IT",
+    requiredSkills: "JavaScript,React,Node.js",
+    description: "Develop and maintain web applications.",
+    status: "active"
+  }).returning();
+  const [job2] = await db.insert(jobs).values({
+    title: "Data Analyst",
+    department: "Analytics",
+    experienceLevel: "Entry",
+    location: "Onsite",
+    field: "Data",
+    requiredSkills: "SQL,Excel,Python",
+    description: "Analyze and report on business data.",
+    status: "active"
+  }).returning();
+  const [job3] = await db.insert(jobs).values({
+    title: "HR Manager",
+    department: "HR",
+    experienceLevel: "Senior",
+    location: "Onsite",
+    field: "HR",
+    requiredSkills: "Recruitment,Management",
+    description: "Lead the HR team.",
+    status: "active"
+  }).returning();
+
+  // Insert candidates
+  const [cand1] = await db.insert(candidates).values({
+    userId: 2,
+    cnic: "12345-1234567-1",
+    firstName: "Ali",
+    lastName: "Khan",
+    city: "Lahore",
+    province: "Punjab"
+  }).returning();
+  const [cand2] = await db.insert(candidates).values({
+    userId: 3,
+    cnic: "98765-7654321-0",
+    firstName: "Sara",
+    lastName: "Ahmed",
+    city: "Karachi",
+    province: "Sindh"
+  }).returning();
+
+  // Insert applications (one hired)
+  const [app1] = await db.insert(applications).values({
+    jobId: job1.id,
+    candidateId: cand1.id,
+    status: "hired",
+    appliedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+    hiredAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+    source: "referral"
+  }).returning();
+  const [app2] = await db.insert(applications).values({
+    jobId: job2.id,
+    candidateId: cand2.id,
+    status: "applied",
+    appliedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+    source: "direct"
+  }).returning();
+
+  // Insert offer (accepted)
+  await db.insert(offers).values({
+    candidateId: cand1.id,
+    jobId: job1.id,
+    offeredAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+    accepted: true,
+    acceptedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+  });
+
+  // Insert job cost
+  await db.insert(jobCosts).values({
+    jobId: job1.id,
+    cost: 10000,
+    description: "Recruitment agency fee",
+    incurredAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
+  });
+
+  console.log("Seeded analytics demo data.");
+}
+
 async function seed() {
   await seedAdminUser();
   await seedEmailTemplates();
+  await seedAnalyticsDemo();
 }
 
 seed();
