@@ -1,12 +1,49 @@
 import dotenv from 'dotenv';
 dotenv.config();
+import { fileURLToPath } from 'url';
+import path from 'path';
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Enable CORS for all routes
+const allowedOrigins = [
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
+  // Add other domains as needed
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
+// Increase JSON payload limit
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  if (Object.keys(req.body).length > 0) {
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -38,7 +75,58 @@ app.use((req, res, next) => {
   next();
 });
 
+// Start the server
 (async () => {
+  // Register API routes first
+  await registerRoutes(app);
+  
+  let vite: any = null;
+  
+  if (process.env.NODE_ENV === 'production') {
+    const staticPath = path.join(process.cwd(), 'dist/public');
+    
+    // Serve static files in production
+    app.use(express.static(staticPath));
+    
+    // Handle SPA fallback - return index.html for all other routes
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(staticPath, 'index.html'));
+    });
+  } else {
+    // In development, use Vite's middleware
+    const { createServer } = await import('vite');
+    vite = await createServer({
+      appType: 'spa',
+      root: path.join(process.cwd(), 'client'),
+      configFile: path.join(process.cwd(), 'vite.config.ts'),
+      server: {
+        middlewareMode: true,
+        hmr: {
+          port: 24678, // Use a different port for HMR
+        },
+      },
+    });
+    
+    // Use vite's connect instance to handle requests
+    app.use(vite.middlewares);
+    
+    // Serve the Vite dev server for all other routes
+    app.use('*', async (req, res, next) => {
+      try {
+        // Skip API routes
+        if (req.originalUrl.startsWith('/api')) {
+          return next();
+        }
+        
+        // Let Vite handle the request
+        vite.middlewares.handle(req, res, next);
+      } catch (e) {
+        // If an error occurs, let Vite fix the stack trace
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
+  }
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

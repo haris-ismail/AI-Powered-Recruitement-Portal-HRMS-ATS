@@ -8,6 +8,8 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+const API_BASE_URL = ''; // Empty since Vite proxy is handling the /api prefix
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -24,7 +26,9 @@ export async function apiRequest(
     headers["Authorization"] = `Bearer ${token}`;
   }
   
-  const res = await fetch(url, {
+  // Ensure the URL has exactly one leading slash
+  const normalizedUrl = url.startsWith('/') ? url : `/${url}`;
+  const res = await fetch(normalizedUrl, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
@@ -48,7 +52,10 @@ export const getQueryFn: <T>(options: {
       headers["Authorization"] = `Bearer ${token}`;
     }
     
-    const res = await fetch(queryKey.join("/") as string, {
+    const path = queryKey.join("/");
+    // Ensure the URL has exactly one leading slash
+    const normalizedUrl = path.startsWith('/') ? path : `/${path}`;
+    const res = await fetch(normalizedUrl, {
       headers,
       credentials: "include",
     });

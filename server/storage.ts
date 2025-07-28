@@ -11,7 +11,7 @@ import {
   assessmentAnswers
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 
 // Only method signatures in IStorage
 export interface IStorage {
@@ -35,6 +35,7 @@ export interface IStorage {
   deleteJobTemplate(id: number): Promise<void>;
   getJobs(): Promise<Job[]>;
   getJob(id: number): Promise<Job | undefined>;
+  getJobById(jobId: number): Promise<Job | null>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: number, job: Partial<InsertJob>): Promise<Job>;
   getApplications(): Promise<Application[]>;
@@ -42,6 +43,8 @@ export interface IStorage {
   getApplicationsByCandidate(candidateId: number): Promise<Application[]>;
   createApplication(application: InsertApplication): Promise<Application>;
   updateApplication(id: number, application: Partial<InsertApplication>): Promise<Application>;
+  getApplicationById(applicationId: number): Promise<Application | null>;
+  deleteApplication(applicationId: number): Promise<void>;
   getEmailTemplates(): Promise<EmailTemplate[]>;
   createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
   getJobStats(): Promise<any>;
@@ -73,7 +76,7 @@ export interface IStorage {
   createJobAssessment(jobId: number, data: any): Promise<any>;
   deleteJobAssessment(id: number): Promise<void>;
   getPendingAssessments(candidateId: number): Promise<any[]>;
-  startAssessment(templateId: number, candidateId: number, jobId?: number): Promise<any>;
+  startAssessment(templateId: number, candidateId: number, jobId?: number | undefined): Promise<any>;
   submitAssessment(attemptId: number, data: any): Promise<any>;
   getAssessmentResults(attemptId: number): Promise<any>;
   getAllAssessmentResults(): Promise<any[]>;
@@ -172,6 +175,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(jobs).where(eq(jobs.id, id)).then(rows => rows[0]);
   }
 
+  async getJobById(jobId: number): Promise<Job | null> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId));
+    return job || null;
+  }
+
   async createJob(job: InsertJob): Promise<Job> {
     const [row] = await db.insert(jobs).values(job).returning();
     return row;
@@ -202,6 +210,18 @@ export class DatabaseStorage implements IStorage {
   async updateApplication(id: number, application: Partial<InsertApplication>): Promise<Application> {
     const [row] = await db.update(applications).set(application).where(eq(applications.id, id)).returning();
     return row;
+  }
+
+  async getApplicationById(applicationId: number): Promise<Application | null> {
+    const [application] = await db.select()
+      .from(applications)
+      .where(eq(applications.id, applicationId));
+    return application || null;
+  }
+
+  async deleteApplication(applicationId: number): Promise<void> {
+    await db.delete(applications)
+      .where(eq(applications.id, applicationId));
   }
 
   async getEmailTemplates(): Promise<EmailTemplate[]> {
@@ -318,8 +338,83 @@ export class DatabaseStorage implements IStorage {
     await db.delete(assessmentTemplates).where(eq(assessmentTemplates.id, id));
   }
 
+  async getAssessmentTemplate(templateId: number): Promise<any> {
+    try {
+      console.log(`Fetching assessment template with ID: ${templateId}`);
+      const [template] = await db
+        .select()
+        .from(assessmentTemplates)
+        .where(eq(assessmentTemplates.id, templateId));
+      
+      if (!template) {
+        console.log(`Template not found for ID: ${templateId}`);
+        return null;
+      }
+      
+      console.log('Template found, fetching questions...');
+      const questions = await this.getAssessmentQuestions(templateId);
+      
+      // Format questions to ensure they have the expected structure
+      const formattedQuestions = questions.map(q => ({
+        ...q,
+        options: Array.isArray(q.options) ? q.options : (q.options ? [q.options] : []),
+        correctAnswers: Array.isArray(q.correctAnswers) ? q.correctAnswers : (q.correctAnswers ? [q.correctAnswers] : [])
+      }));
+      
+      return {
+        ...template,
+        questions: formattedQuestions
+      };
+    } catch (error) {
+      console.error('Error in getAssessmentTemplate:', error);
+      throw error;
+    }
+  }
+
   async getAssessmentQuestions(templateId: number): Promise<any[]> {
-    return await db.select().from(assessmentQuestions).where(eq(assessmentQuestions.templateId, templateId));
+    try {
+      console.log(`Fetching questions for template ID: ${templateId}`);
+      const questions = await db
+        .select()
+        .from(assessmentQuestions)
+        .where(eq(assessmentQuestions.templateId, templateId))
+        .orderBy(assessmentQuestions.orderIndex);
+      
+      console.log(`Found ${questions.length} questions for template ${templateId}`);
+      
+      // Ensure questions have properly formatted options and correctAnswers
+      return questions.map(question => ({
+        ...question,
+        options: question.options ? (Array.isArray(question.options) ? question.options : [question.options]) : [],
+        correctAnswers: question.correctAnswers ? (Array.isArray(question.correctAnswers) ? question.correctAnswers : [question.correctAnswers]) : []
+      }));
+    } catch (error) {
+      console.error('Error in getAssessmentQuestions:', error);
+      throw error;
+    }
+  }
+
+  async findAssessmentAttempt(candidateId: number, templateId: number, jobId: number): Promise<any> {
+    try {
+      const conditions = [
+        eq(assessmentAttempts.candidateId, candidateId),
+        eq(assessmentAttempts.templateId, templateId),
+        eq(assessmentAttempts.jobId, jobId),
+        eq(assessmentAttempts.status, 'in_progress')
+      ];
+
+      const [attempt] = await db
+        .select()
+        .from(assessmentAttempts)
+        .where(and(...conditions))
+        .orderBy(desc(assessmentAttempts.createdAt))
+        .limit(1);
+      
+      return attempt || null;
+    } catch (error) {
+      console.error('Error in findAssessmentAttempt:', error);
+      throw error;
+    }
   }
 
   async createAssessmentQuestion(templateId: number, data: any): Promise<any> {
@@ -337,8 +432,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getJobAssessments(jobId: number): Promise<any[]> {
-    return await db.select().from(jobAssessments).where(eq(jobAssessments.jobId, jobId));
+    const jobAssessmentsList = await db
+      .select({
+        job_assessments: {
+          id: jobAssessments.id,
+          jobId: jobAssessments.jobId,
+          templateId: jobAssessments.templateId,
+          isRequired: jobAssessments.isRequired,
+          createdAt: jobAssessments.createdAt
+        },
+        jobs: {
+          id: jobs.id,
+          title: jobs.title,
+          department: jobs.department,
+          location: jobs.location,
+          status: jobs.status,
+          description: jobs.description,
+          experienceLevel: jobs.experienceLevel,
+          createdAt: jobs.createdAt
+        }
+      })
+      .from(jobAssessments)
+      .leftJoin(jobs, eq(jobAssessments.jobId, jobs.id))
+      .where(eq(jobAssessments.jobId, jobId));
+    
+    // Transform the result to match the expected format
+    return jobAssessmentsList.map(item => ({
+      ...item.job_assessments,
+      job: item.jobs
+    }));
   }
+  
+
 
   async createJobAssessment(jobId: number, data: any): Promise<any> {
     const [row] = await db.insert(jobAssessments).values({ ...data, jobId }).returning();
@@ -350,18 +475,60 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPendingAssessments(candidateId: number): Promise<any[]> {
-    // Return all assessments assigned to candidate that are not completed/expired
-    // (This is a placeholder, you may want to join with job_assessments, etc.)
-    return await db.select().from(assessmentAttempts).where(and(eq(assessmentAttempts.candidateId, candidateId), eq(assessmentAttempts.status, "in_progress")));
+    try {
+      // Get all applications for the candidate
+      const applications = await this.getApplicationsByCandidate(candidateId);
+      if (applications.length === 0) return [];
+      
+      // Get all job assessments for these applications
+      const jobIds = [...new Set(applications.map(app => app.jobId))];
+      const allAssessments = [];
+      
+      for (const jobId of jobIds) {
+        const jobAssessments = await this.getJobAssessments(jobId);
+        allAssessments.push(...jobAssessments);
+      }
+      
+      // Get assessment templates and filter out any without templates
+      const assessmentsWithTemplates = [];
+      
+      for (const assessment of allAssessments) {
+        // Check if there's already an attempt for this assessment
+        const existingAttempt = await this.findAssessmentAttempt(
+          candidateId,
+          assessment.templateId,
+          assessment.jobId
+        );
+        
+        // Only include assessments that don't have a completed attempt
+        if (!existingAttempt || existingAttempt.status === 'in_progress') {
+          const template = await this.getAssessmentTemplate(assessment.templateId);
+          if (template) {
+            assessmentsWithTemplates.push({
+              ...assessment,
+              template,
+              jobId: assessment.jobId,
+              status: existingAttempt?.status || 'not_started',
+              attemptId: existingAttempt?.id
+            });
+          }
+        }
+      }
+      
+      return assessmentsWithTemplates;
+    } catch (error) {
+      console.error('Error in getPendingAssessments:', error);
+      throw error;
+    }
   }
 
-  async startAssessment(templateId: number, candidateId: number, jobId?: number): Promise<any> {
+  async startAssessment(templateId: number, candidateId: number, jobId?: number | undefined): Promise<any> {
     // Prevent multiple attempts
     const existing = await db.select().from(assessmentAttempts)
       .where(and(
         eq(assessmentAttempts.candidateId, candidateId),
         eq(assessmentAttempts.templateId, templateId),
-        jobId ? eq(assessmentAttempts.jobId, jobId) : undefined,
+        jobId !== undefined ? eq(assessmentAttempts.jobId, jobId) : isNull(assessmentAttempts.jobId),
         // Only allow if not completed/expired
         eq(assessmentAttempts.status, "in_progress")
       ));
@@ -533,11 +700,78 @@ export class DatabaseStorage implements IStorage {
     return [];
   }
 
-  async getApplicationByCandidateAndJob(candidateId: number, jobId: number) {
-    const [row] = await db.select().from(applications).where(
-      and(applications.candidateId.eq(candidateId), applications.jobId.eq(jobId))
-    );
-    return row || null;
+  async getAssessmentsByJob(jobId: number): Promise<any[]> {
+    console.log(`[getAssessmentsByJob] Fetching assessments for job ${jobId}`);
+    
+    // Get job to check assessmentTemplateId
+    const job = await this.getJobById(jobId);
+    console.log('[getAssessmentsByJob] Job data:', job);
+    
+    // Get assessments from job_assessments table
+    const assessments = await db
+      .select()
+      .from(jobAssessments)
+      .leftJoin(assessmentTemplates, eq(jobAssessments.templateId, assessmentTemplates.id))
+      .where(eq(jobAssessments.jobId, jobId))
+      .then(rows => {
+        console.log('[getAssessmentsByJob] Assessments from job_assessments:', rows);
+        return rows;
+      });
+
+    // If job has assessmentTemplateId and no assessments found, return that
+    if (job?.assessmentTemplateId && assessments.length === 0) {
+      console.log('[getAssessmentsByJob] Found assessmentTemplateId:', job.assessmentTemplateId);
+      const template = await db
+        .select()
+        .from(assessmentTemplates)
+        .where(eq(assessmentTemplates.id, job.assessmentTemplateId))
+        .then(rows => {
+          console.log('[getAssessmentsByJob] Assessment template:', rows[0]);
+          return rows[0];
+        });
+      
+      if (template) {
+        console.log('[getAssessmentsByJob] Returning template assessment');
+        return [{ templateId: job.assessmentTemplateId, ...template, isRequired: true }];
+      }
+    }
+
+    // If we have assessments from job_assessments, ensure they have isRequired set
+    if (assessments.length > 0) {
+      console.log('[getAssessmentsByJob] Returning job_assessments assessments');
+      return assessments.map(assessment => ({
+        ...assessment,
+        isRequired: assessment.isRequired || true // Default to true if not set
+      }));
+    }
+
+    console.log('[getAssessmentsByJob] No assessments found');
+    return [];
+  }
+
+  async createAssessmentAttempt(data: {
+    templateId: number;
+    candidateId: number;
+    jobId: number | null;
+    startedAt: Date;
+  }): Promise<any> {
+    const [row] = await db
+      .insert(assessmentAttempts)
+      .values(data)
+      .returning();
+    return row;
+  }
+
+  async getApplicationByCandidateAndJob(candidateId: number, jobId: number): Promise<Application | null> {
+    const [application] = await db.select()
+      .from(applications)
+      .where(
+        and(
+          eq(applications.candidateId, candidateId),
+          eq(applications.jobId, jobId)
+        )
+      );
+    return application || null;
   }
 }
 

@@ -226,9 +226,7 @@ export default function AdminJobs() {
       field: jobFormData.field,
       requiredSkills: jobFormData.requiredSkills,
       description: jobFormData.description,
-    };
-    if (jobFormData.assessmentTemplateId) {
-      jobData.assessmentTemplateId = jobFormData.assessmentTemplateId;
+      assessmentTemplateId: jobFormData.assessmentTemplateId // Always include assessmentTemplateId
     }
 
     if (editingJob) {

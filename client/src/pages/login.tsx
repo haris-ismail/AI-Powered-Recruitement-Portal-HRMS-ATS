@@ -23,7 +23,7 @@ export default function Login() {
     if (currentUser.role === "admin") {
       navigate("/admin");
     } else {
-      navigate("/candidate");
+      navigate("/candidate/profile");
     }
     return null;
   }
@@ -37,12 +37,30 @@ export default function Login() {
     const password = formData.get("password") as string;
 
     try {
-      const response = await apiRequest("POST", "/api/auth/login", {
-        email,
-        password,
+      console.log('Attempting login with:', { email });
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
       });
 
+      console.log('Login response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Login failed');
+      }
+
       const data = await response.json();
+      console.log('Login successful, received data:', data);
+      
+      if (!data.token) {
+        throw new Error('No token received');
+      }
+
       setToken(data.token);
 
       toast({
@@ -51,15 +69,16 @@ export default function Login() {
       });
 
       // Redirect based on role
-      if (data.user.role === "admin") {
+      if (data.user?.role === "admin") {
         navigate("/admin");
       } else {
-        navigate("/candidate");
+        navigate("/candidate/profile");
       }
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid credentials",
+        description: error.message || "Invalid credentials. Please check your email and password.",
         variant: "destructive",
       });
     } finally {
