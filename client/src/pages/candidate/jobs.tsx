@@ -25,6 +25,7 @@ import {
   LogOut
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 interface Job {
   id: number;
@@ -74,18 +75,6 @@ export default function CandidateJobs() {
   const [isApplying, setIsApplying] = useState(false);
   const [justAppliedJobId, setJustAppliedJobId] = useState<number | null>(null);
 
-  // Check localStorage for a just-applied job to immediately reflect UI
-  useEffect(() => {
-    const stored = localStorage.getItem('justAppliedJob');
-    if (stored) {
-      const idNum = parseInt(stored, 10);
-      if (!Number.isNaN(idNum)) {
-        setJustAppliedJobId(idNum);
-      }
-      localStorage.removeItem('justAppliedJob');
-    }
-  }, []);
-
   const { data: jobs = [], isLoading: isJobsLoading, error: jobsError } = useQuery({
     queryKey: ['jobs'],
     queryFn: () => fetcher('/jobs'),
@@ -103,6 +92,20 @@ export default function CandidateJobs() {
     queryFn: async () => fetcher('/applications'),
     refetchOnWindowFocus: false
   });
+
+  // Check localStorage for a just-applied job to immediately reflect UI
+  useEffect(() => {
+    const stored = localStorage.getItem('justAppliedJob');
+    if (stored) {
+      const idNum = parseInt(stored, 10);
+      if (!Number.isNaN(idNum)) {
+        setJustAppliedJobId(idNum);
+        // Refetch applications to ensure the button updates correctly
+        refetchApplications();
+      }
+      localStorage.removeItem('justAppliedJob');
+    }
+  }, [refetchApplications]);
 
   const { mutate: unapply } = useMutation({
     mutationFn: async (applicationId: number) => fetcher(`/applications/${applicationId}`, { method: 'DELETE' }),
@@ -145,7 +148,7 @@ export default function CandidateJobs() {
       await fetcher('/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId })
+        body: JSON.stringify({ jobId: Number(jobId) })
       });
 
       // Refetch applications list so Apply button becomes Withdraw etc.
@@ -408,6 +411,7 @@ export default function CandidateJobs() {
             </div>
           )}
         </main>
+        <ChatbotWidget />
       </div>
     </div>
   );

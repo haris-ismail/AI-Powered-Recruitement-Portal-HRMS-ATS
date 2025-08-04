@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
 import { useQuery } from "@tanstack/react-query";
+import { useAuthMigration } from "@/lib/auth-migration";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 interface AssessmentTemplate {
   id: number;
@@ -42,13 +44,39 @@ interface JobAssessment {
 }
 
 export default function CandidateAssessmentsPage() {
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
+  const { user, loading: authLoading } = useAuthMigration();
   
   const { data: assessments = [], isLoading, error } = useQuery({
     queryKey: ['candidateAssessments'],
-    queryFn: () => fetcher('/api/candidate/pending-assessments'),
+    queryFn: async () => {
+      console.log('Fetching candidate assessments...');
+      console.log('User:', user);
+      console.log('Auth loading:', authLoading);
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
+      try {
+        const result = await fetcher('/candidate/pending-assessments');
+        console.log('Assessments response:', result);
+        return result;
+      } catch (err) {
+        console.error('Error fetching assessments:', err);
+        throw err;
+      }
+    },
     refetchOnWindowFocus: false,
+    retry: false,
+    enabled: !!user && !authLoading, // Only run when user is authenticated
   });
+  
+  console.log('Assessments data:', assessments);
+  console.log('Loading state:', isLoading);
+  console.log('Error state:', error);
+  console.log('Auth loading:', authLoading);
+  console.log('User:', user);
   
   const assessmentsByJob: Record<number, JobAssessment[]> = {};
   
@@ -95,6 +123,23 @@ export default function CandidateAssessmentsPage() {
       // Handle error (e.g., show toast notification)
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading authentication...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        Please log in to view your assessments.
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -189,6 +234,7 @@ export default function CandidateAssessmentsPage() {
           </div>
         );
       })}
+      <ChatbotWidget />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
 import React, { useEffect, useState } from "react";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 // Add these types for assessment info
 interface AssessmentAttempt {
@@ -109,36 +110,67 @@ export default function CandidateApplications() {
 
   const { data: applications, isLoading } = useQuery<Application[]>({
     queryKey: ["/api/applications"],
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const { data: jobs } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const { data: profile } = useQuery<Profile>({
     queryKey: ["/api/profile"],
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const [assessmentAttempts, setAssessmentAttempts] = useState<Record<number, AssessmentAttempt>>({}); // applicationId -> info
+  const [loadingAttempts, setLoadingAttempts] = useState(false);
 
   useEffect(() => {
     // Fetch assessment attempts for this candidate
     async function fetchAttempts() {
-      // Suppose you have a list of applicationIds
-      const applicationIds = applications?.map((a: any) => a.id) || [];
-      const results: Record<number, AssessmentAttempt> = {};
-      for (const id of applicationIds) {
-        // You may need to adjust this API call to get attempt by application
-        const res = await fetch(`/api/applications/${id}/assessment-attempt`);
+      if (!applications || applications.length === 0 || isLoading) return;
+      
+      setLoadingAttempts(true);
+      try {
+        // Use the correct API endpoint for pending assessments
+        const res = await fetch('/api/candidate/pending-assessments', {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
         if (res.ok) {
           const data = await res.json();
-          results[id] = data;
+          // Transform the data to match our expected format
+          const attempts: Record<number, AssessmentAttempt> = {};
+          data.forEach((assessment: any) => {
+            if (assessment.jobId && assessment.template) {
+              attempts[assessment.jobId] = {
+                status: assessment.status || 'not_started',
+                score: assessment.score,
+                maxScore: assessment.template.passingScore,
+                progress: assessment.status === 'completed' ? 1 : 0
+              };
         }
-      }
-      setAssessmentAttempts(results);
+          });
+          setAssessmentAttempts(attempts);
+        }
+      } catch (error) {
+        console.error('Error fetching assessment attempts:', error);
+        // Don't set state on error to prevent infinite loops
+      } finally {
+        setLoadingAttempts(false);
     }
+    }
+    
     fetchAttempts();
-  }, [applications]);
+  }, [applications, isLoading]);
 
   const handleLogout = async () => {
     await logout();
@@ -404,6 +436,7 @@ export default function CandidateApplications() {
             </div>
           )}
         </main>
+        <ChatbotWidget />
       </div>
     </div>
   );

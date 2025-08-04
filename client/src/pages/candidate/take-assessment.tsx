@@ -11,6 +11,7 @@ import { removeToken } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/auth";
 import { Building, Clock, CheckCircle2, XCircle, AlertCircle, LogOut, X } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 interface Question {
   id: number;
@@ -376,61 +377,97 @@ export default function TakeAssessmentPage() {
   };
 
   const handleSubmit = async () => {
-    if (!attemptId) return;
+    console.log(`🚀 [FRONTEND] Assessment submission started`);
+    console.log(`📊 [FRONTEND] Submission details:`, {
+      attemptId,
+      questionsCount: questions.length,
+      answeredQuestions: Object.keys(answers).length,
+      jobId
+    });
+    console.log(`📦 [FRONTEND] Answers to submit:`, JSON.stringify(answers, null, 2));
+    
+    if (!attemptId) {
+      console.error(`❌ [FRONTEND] No attempt ID available`);
+      return;
+    }
+    
     const allAnswered = questions.every(q => answers[q.id] !== undefined && answers[q.id] !== null && answers[q.id] !== "");
+    console.log(`✅ [FRONTEND] All questions answered: ${allAnswered}`);
+    
     if (!allAnswered) {
+      console.warn(`⚠️ [FRONTEND] Not all questions answered, showing alert`);
       alert("Please answer all questions before submitting.");
       return;
     }
-    // Evaluate score on client side for now
-    let correct = 0;
-    questions.forEach(q => {
-      if (Array.isArray(q.correctAnswers) && q.correctAnswers.length > 0) {
-        if (Array.isArray(answers[q.id])) {
-          const answerArr = answers[q.id] as string[];
-          if (q.correctAnswers.every((c: any) => answerArr.includes(c))) correct += 1;
-        } else {
-          if (q.correctAnswers.includes(answers[q.id])) correct += 1;
-        }
-      }
-    });
-    const passed = correct === questions.length; // simple rule: all correct
-    const msg = passed ? `Passed! (${correct}/${questions.length})` : `Assessment Completed (${correct}/${questions.length})`;
-    setResultMsg(msg);
-    setOpenResult(true);
-    
-    // Submit application regardless of pass/fail
-    if (jobId) {
-      try {
-        await fetcher('/applications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId })
-        });
-        // Remember job locally so Jobs page can immediately show "Applied"
-        localStorage.setItem('justAppliedJob', jobId.toString());
-      } catch (error) {
-        console.error('Error submitting application:', error);
-      }
-    }
-    
-    // Redirect after 3s
-    setTimeout(() => {
-      setOpenResult(false);
-      window.location.href = "/candidate/jobs";
-    }, 3000);
-    return;
     
     try {
       setLoading(true);
       setError(null);
       
-      const response = await apiRequest("POST", `/api/assessments/${attemptId}/submit`, {
-        answers: answers
+      // Submit assessment results to backend
+      console.log(`📞 [FRONTEND] Making API request to submit assessment`);
+      console.log(`📊 [FRONTEND] Request payload:`, {
+        answers: answers,
+        jobId: jobId
       });
       
+      // Add timeout to the request using Promise.race
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 30000); // 30 second timeout
+      });
+      
+      console.log(`⏰ [FRONTEND] Setting up 30-second timeout for submission`);
+      const submissionPromise = apiRequest("POST", `/api/assessments/${attemptId}/submit`, {
+        answers: answers,
+        jobId: jobId // Include jobId for proper linking
+      });
+      
+      console.log(`🔄 [FRONTEND] Racing submission promise against timeout`);
+      const response = await Promise.race([submissionPromise, timeoutPromise]) as Response;
+      
+      console.log(`✅ [FRONTEND] API request completed successfully`);
+      console.log(`📊 [FRONTEND] Response status: ${response.status}`);
+      console.log(`📊 [FRONTEND] Response headers:`, Object.fromEntries(response.headers.entries()));
+      
       if (!response.ok) {
-        throw new Error("Failed to submit assessment");
+        const errorText = await response.text();
+        console.error(`❌ [FRONTEND] Response not OK: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to submit assessment: ${response.status} - ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log(`📊 [FRONTEND] Response data:`, JSON.stringify(result, null, 2));
+      
+      // Show result message
+      const passed = result.passed;
+      const score = result.score;
+      const maxScore = result.maxScore;
+      const msg = passed 
+        ? `Passed! (${score}/${maxScore})` 
+        : `Assessment Completed (${score}/${maxScore})`;
+      
+      console.log(`📊 [FRONTEND] Result message: ${msg}`);
+      console.log(`📊 [FRONTEND] Assessment passed: ${passed}`);
+      console.log(`📊 [FRONTEND] Score: ${score}/${maxScore}`);
+      
+      setResultMsg(msg);
+      setOpenResult(true);
+      
+      // Submit application regardless of pass/fail
+      if (jobId) {
+        console.log(`📝 [FRONTEND] Submitting job application for job ID: ${jobId}`);
+        try {
+          await fetcher('/applications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobId: Number(jobId) })
+          });
+          console.log(`✅ [FRONTEND] Job application submitted successfully`);
+          // Remember job locally so Jobs page can immediately show "Applied"
+          localStorage.setItem('justAppliedJob', jobId.toString());
+        } catch (error) {
+          console.error(`❌ [FRONTEND] Error submitting application:`, error);
+        }
       }
       
       toast({
@@ -438,15 +475,39 @@ export default function TakeAssessmentPage() {
         description: "Assessment submitted successfully",
       });
       
-      window.location.href = `/candidate/assessment-results?attemptId=${attemptId}`;
+      console.log(`⏰ [FRONTEND] Setting up redirect to results page in 3 seconds`);
+      // Redirect to results page after 3 seconds
+      setTimeout(() => {
+        console.log(`🔄 [FRONTEND] Redirecting to results page`);
+        setOpenResult(false);
+        window.location.href = `/assessment-results?attemptId=${attemptId}`;
+      }, 3000);
+      
     } catch (error: any) {
-      setError(error.message);
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
+      console.error(`❌ [FRONTEND] Assessment submission error:`, error);
+      console.error(`❌ [FRONTEND] Error type:`, typeof error);
+      console.error(`❌ [FRONTEND] Error message:`, error.message);
+      console.error(`❌ [FRONTEND] Error stack:`, error.stack);
+      
+      if (error.message === 'Request timed out') {
+        console.error(`⏰ [FRONTEND] Request timed out after 30 seconds`);
+        setError('Request timed out. Please try again.');
+        toast({
+          title: "Timeout Error",
+          description: "Assessment submission timed out. Please try again.",
+          variant: "destructive"
+        });
+      } else {
+        console.error(`❌ [FRONTEND] Other error occurred:`, error.message);
+        setError(error.message);
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
     } finally {
+      console.log(`🏁 [FRONTEND] Assessment submission process completed`);
       setLoading(false);
     }
   };
@@ -631,6 +692,7 @@ export default function TakeAssessmentPage() {
           </Dialog>
         )}
       </main>
+      <ChatbotWidget />
     </div>
   </div>
   );

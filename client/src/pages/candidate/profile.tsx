@@ -22,10 +22,12 @@ import {
   MapPin,
   GraduationCap,
   Building,
-  Save
+  Save,
+  CheckCircle
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/NASTPLogo.png";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 function isProfileComplete(profile: any) {
   // Define required fields for completeness
@@ -101,9 +103,14 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
             <a href={profile.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View Resume</a>
           ) : <span className="italic text-gray-400">Not uploaded</span>}
         </div>
-        {/* Show extracted resume text if available - always show for debugging */}
+        {/* Show extracted resume text if available */}
         <div className="mb-4">
           <div className="font-semibold">Extracted Resume Text:</div>
+          {profile.resumeUrl && !profile.resumeText && (
+            <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+              ⚠️ Resume uploaded but text not extracted. Click "Extract Resume Text" in edit mode.
+            </div>
+          )}
           <div className="whitespace-pre-line text-gray-700 text-xs max-h-60 overflow-auto border rounded p-2 bg-gray-50">
             {profile.resumeText || <span className="italic text-gray-400">No extracted text available</span>}
           </div>
@@ -177,9 +184,22 @@ export default function CandidateProfile() {
 
   // Add state for skills
   const [skills, setSkills] = useState<any[]>([]);
+  
+  const [isEditing, setIsEditing] = useState<boolean | undefined>(undefined);
+  const [error, setError] = useState("");
+  const [resumeText, setResumeText] = useState("");
+
+  const { data: profileQueryData, isLoading } = useQuery<any>({
+    queryKey: ["/api/profile"],
+  });
+
   // Fetch skills for the candidate
   const { data: skillsData, refetch: refetchSkills } = useQuery<any[]>({
     queryKey: ["/api/skills"],
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!profileQueryData // Only fetch skills when profile is loaded
   });
   useEffect(() => {
     if (Array.isArray(skillsData)) setSkills(skillsData);
@@ -219,43 +239,44 @@ export default function CandidateProfile() {
     deleteSkillMutation.mutate(id);
   };
 
-  const [isEditing, setIsEditing] = useState(true);
-  const [error, setError] = useState("");
-  const [resumeText, setResumeText] = useState("");
-
-  const { data: profile, isLoading } = useQuery<any>({
-    queryKey: ["/api/profile"],
-  });
-
   useEffect(() => {
-    if (profile) {
-      setProfileData({
-        cnic: profile.cnic || "",
-        firstName: profile.firstName || "",
-        lastName: profile.lastName || "",
-        dateOfBirth: profile.dateOfBirth || "",
-        apartment: profile.apartment || "",
-        street: profile.street || "",
-        area: profile.area || "",
-        city: profile.city || "",
-        province: profile.province || "",
-        postalCode: profile.postalCode || "",
-        motivationLetter: profile.motivationLetter || "",
-        resumeUrl: profile.resumeUrl || "",
-        profilePicture: profile.profilePicture || "",
-        resumeText: profile.resumeText || ""
-      });
-      setResumeText(profile.resumeText || "");
-      setEducationList(profile.education || []);
-      setExperienceList(profile.experience || []);
-      // Set isEditing based on profile completeness
-      if (isProfileComplete(profile)) {
-        setIsEditing(false);
-      } else {
-        setIsEditing(true);
+    if (profileQueryData) {
+      // Always update education and experience lists
+      setEducationList(profileQueryData.education || []);
+      setExperienceList(profileQueryData.experience || []);
+      setResumeText(profileQueryData.resumeText || "");
+      
+      // Only update profile data if we're not currently editing
+      // This prevents form data from being reset when education/experience is added
+      if (!isEditing) {
+        setProfileData({
+          cnic: profileQueryData.cnic || "",
+          firstName: profileQueryData.firstName || "",
+          lastName: profileQueryData.lastName || "",
+          dateOfBirth: profileQueryData.dateOfBirth || "",
+          apartment: profileQueryData.apartment || "",
+          street: profileQueryData.street || "",
+          area: profileQueryData.area || "",
+          city: profileQueryData.city || "",
+          province: profileQueryData.province || "",
+          postalCode: profileQueryData.postalCode || "",
+          motivationLetter: profileQueryData.motivationLetter || "",
+          resumeUrl: profileQueryData.resumeUrl || "",
+          profilePicture: profileQueryData.profilePicture || "",
+          resumeText: profileQueryData.resumeText || ""
+        });
+      }
+      
+      // Initialize isEditing based on profile completeness only once
+      if (isEditing === undefined) {
+        if (isProfileComplete(profileQueryData)) {
+          setIsEditing(false);
+        } else {
+          setIsEditing(true);
+        }
       }
     }
-  }, [profile]);
+  }, [profileQueryData, isEditing]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -267,6 +288,11 @@ export default function CandidateProfile() {
         title: "Success",
         description: "Profile updated successfully",
       });
+      
+      // Set editing to false to show the profile card
+      setIsEditing(false);
+      
+      // Invalidate the query to refresh the data
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
     },
     onError: (error: any) => {
@@ -284,7 +310,8 @@ export default function CandidateProfile() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      // Don't invalidate profile query immediately to prevent form reset
+      // The local state is updated in handleEducationSubmit instead
     },
   });
 
@@ -293,7 +320,8 @@ export default function CandidateProfile() {
       await apiRequest("DELETE", `/api/education/${id}`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      // Don't invalidate profile query immediately to prevent form reset
+      // The local state is updated in removeEducation instead
     },
   });
 
@@ -303,7 +331,8 @@ export default function CandidateProfile() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      // Don't invalidate profile query immediately to prevent form reset
+      // The local state is updated in handleExperienceSubmit instead
     },
   });
 
@@ -312,7 +341,8 @@ export default function CandidateProfile() {
       await apiRequest("DELETE", `/api/experience/${id}`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      // Don't invalidate profile query immediately to prevent form reset
+      // The local state is updated in removeExperience instead
     },
   });
 
@@ -372,6 +402,34 @@ export default function CandidateProfile() {
     },
   });
 
+  // Extract resume text mutation
+  const extractResumeTextMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/extract-resume-text", {
+        method: "POST",
+        credentials: "include"
+      });
+      if (!response.ok) throw new Error("Failed to extract resume text");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: "Resume text extracted successfully",
+      });
+      setProfileData(prev => ({ ...prev, resumeText: data.resumeText }));
+      setResumeText(data.resumeText || "");
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to extract resume text",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Add CNIC validation to handleProfileSubmit
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -390,7 +448,7 @@ export default function CandidateProfile() {
     setError("");
     try {
       await updateProfileMutation.mutateAsync({ ...profileData, email: user.email });
-      setIsEditing(false);
+      // setIsEditing(false) is now handled in the mutation's onSuccess callback
     } catch (err: any) {
       if (err?.response?.data?.message) {
         setError(err.response.data.message);
@@ -401,22 +459,60 @@ export default function CandidateProfile() {
   };
 
   const handleEducationSubmit = async (education: any, index: number) => {
-    if (education.id) {
-      // Update existing education
-      return;
-    } else {
-      // Create new education
-      await createEducationMutation.mutateAsync(education);
+    try {
+      if (education.id) {
+        // Update existing education
+        return;
+      } else {
+        // Create new education
+        const createdEducation = await createEducationMutation.mutateAsync(education);
+        
+        // Update the local state with the created education (including the ID)
+        const newEducationList = [...educationList];
+        newEducationList[index] = createdEducation;
+        setEducationList(newEducationList);
+        
+        // Show success message
+        toast({
+          title: "Success",
+          description: "Education added successfully",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add education",
+        variant: "destructive",
+      });
     }
   };
 
   const handleExperienceSubmit = async (experience: any, index: number) => {
-    if (experience.id) {
-      // Update existing experience
-      return;
-    } else {
-      // Create new experience
-      await createExperienceMutation.mutateAsync(experience);
+    try {
+      if (experience.id) {
+        // Update existing experience
+        return;
+      } else {
+        // Create new experience
+        const createdExperience = await createExperienceMutation.mutateAsync(experience);
+        
+        // Update the local state with the created experience (including the ID)
+        const newExperienceList = [...experienceList];
+        newExperienceList[index] = createdExperience;
+        setExperienceList(newExperienceList);
+        
+        // Show success message
+        toast({
+          title: "Success",
+          description: "Experience added successfully",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add experience",
+        variant: "destructive",
+      });
     }
   };
 
@@ -482,19 +578,21 @@ export default function CandidateProfile() {
     window.location.href = "/login";
   };
 
-  if (isLoading) {
+  if (isLoading || updateProfileMutation.isPending) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
+          <p className="text-gray-600">
+            {isLoading ? "Loading profile..." : "Saving profile..."}
+          </p>
         </div>
       </div>
     );
   }
 
   // Show card if profile is complete and not editing
-  if (!isEditing && isProfileComplete({ ...profileData, email: user?.email }) && profile) {
+  if (!isEditing && profileQueryData && isProfileComplete({ ...profileQueryData, email: user?.email })) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
@@ -507,8 +605,8 @@ export default function CandidateProfile() {
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <span className="text-sm font-medium text-gray-700">
-                  {profileData.firstName && profileData.lastName 
-                    ? `${profileData.firstName} ${profileData.lastName}`
+                  {profileQueryData.firstName && profileQueryData.lastName 
+                    ? `${profileQueryData.firstName} ${profileQueryData.lastName}`
                     : user?.email
                   }
                 </span>
@@ -541,6 +639,12 @@ export default function CandidateProfile() {
                   <span>My Applications</span>
                 </a>
               </Link>
+              <Link href="/candidate/assessments">
+                <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                  <FileText className="h-5 w-5" />
+                  <span>My Assessments</span>
+                </a>
+              </Link>
             </nav>
           </aside>
           {/* Main Content */}
@@ -550,7 +654,7 @@ export default function CandidateProfile() {
               <p className="text-gray-600">View and edit your profile information</p>
             </div>
             <ProfileCard 
-              profile={{ ...profileData, email: user?.email, resumeUrl: profile?.resumeUrl, resumeText }} 
+              profile={{ ...profileQueryData, email: user?.email }} 
               educationList={educationList} 
               experienceList={experienceList} 
               skills={skills}
@@ -576,8 +680,8 @@ export default function CandidateProfile() {
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
               <span className="text-sm font-medium text-gray-700">
-                {profileData.firstName && profileData.lastName 
-                  ? `${profileData.firstName} ${profileData.lastName}`
+                {profileQueryData.firstName && profileQueryData.lastName 
+                  ? `${profileQueryData.firstName} ${profileQueryData.lastName}`
                   : user?.email
                 }
               </span>
@@ -610,6 +714,12 @@ export default function CandidateProfile() {
                 <span>My Applications</span>
               </a>
             </Link>
+            <Link href="/candidate/assessments">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                <FileText className="h-5 w-5" />
+                <span>My Assessments</span>
+              </a>
+            </Link>
           </nav>
         </aside>
         {/* Main Content */}
@@ -632,8 +742,8 @@ export default function CandidateProfile() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center space-x-4">
-                  {profileData.profilePicture ? (
-                    <img src={profileData.profilePicture} alt="Profile" className="h-20 w-20 rounded-full object-cover border" />
+                  {profileQueryData.profilePicture ? (
+                    <img src={profileQueryData.profilePicture} alt="Profile" className="h-20 w-20 rounded-full object-cover border" />
                   ) : (
                     <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">No Image</div>
                   )}
@@ -657,8 +767,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="cnic">CNIC</Label>
                   <Input
                     id="cnic"
-                    value={profileData.cnic}
-                    onChange={(e) => setProfileData({ ...profileData, cnic: e.target.value.replace(/[^\d]/g, "") })}
+                    value={profileQueryData.cnic}
+                    onChange={(e) => setProfileData({ ...profileQueryData, cnic: e.target.value.replace(/[^\d]/g, "") })}
                     placeholder="12345678901234"
                     maxLength={14}
                     minLength={14}
@@ -668,8 +778,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="firstName">First Name</Label>
                   <Input
                     id="firstName"
-                    value={profileData.firstName}
-                    onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
+                    value={profileQueryData.firstName}
+                    onChange={(e) => setProfileData({ ...profileQueryData, firstName: e.target.value })}
                     placeholder="John"
                   />
                 </div>
@@ -677,8 +787,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="lastName">Last Name</Label>
                   <Input
                     id="lastName"
-                    value={profileData.lastName}
-                    onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })}
+                    value={profileQueryData.lastName}
+                    onChange={(e) => setProfileData({ ...profileQueryData, lastName: e.target.value })}
                     placeholder="Doe"
                   />
                 </div>
@@ -687,8 +797,8 @@ export default function CandidateProfile() {
                   <Input
                     id="dateOfBirth"
                     type="date"
-                    value={profileData.dateOfBirth}
-                    onChange={(e) => setProfileData({ ...profileData, dateOfBirth: e.target.value })}
+                    value={profileQueryData.dateOfBirth}
+                    onChange={(e) => setProfileData({ ...profileQueryData, dateOfBirth: e.target.value })}
                   />
                 </div>
                 <div>
@@ -717,8 +827,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="apartment">Apartment/Unit</Label>
                   <Input
                     id="apartment"
-                    value={profileData.apartment}
-                    onChange={(e) => setProfileData({ ...profileData, apartment: e.target.value })}
+                    value={profileQueryData.apartment}
+                    onChange={(e) => setProfileData({ ...profileQueryData, apartment: e.target.value })}
                     placeholder="Apt 4B"
                   />
                 </div>
@@ -726,8 +836,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="street">Street</Label>
                   <Input
                     id="street"
-                    value={profileData.street}
-                    onChange={(e) => setProfileData({ ...profileData, street: e.target.value })}
+                    value={profileQueryData.street}
+                    onChange={(e) => setProfileData({ ...profileQueryData, street: e.target.value })}
                     placeholder="123 Main Street"
                   />
                 </div>
@@ -735,8 +845,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="area">Area</Label>
                   <Input
                     id="area"
-                    value={profileData.area}
-                    onChange={(e) => setProfileData({ ...profileData, area: e.target.value })}
+                    value={profileQueryData.area}
+                    onChange={(e) => setProfileData({ ...profileQueryData, area: e.target.value })}
                     placeholder="Downtown"
                   />
                 </div>
@@ -744,8 +854,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="city">City</Label>
                   <Input
                     id="city"
-                    value={profileData.city}
-                    onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}
+                    value={profileQueryData.city}
+                    onChange={(e) => setProfileData({ ...profileQueryData, city: e.target.value })}
                     placeholder="New York"
                   />
                 </div>
@@ -753,8 +863,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="province">Province/State</Label>
                   <Input
                     id="province"
-                    value={profileData.province}
-                    onChange={(e) => setProfileData({ ...profileData, province: e.target.value })}
+                    value={profileQueryData.province}
+                    onChange={(e) => setProfileData({ ...profileQueryData, province: e.target.value })}
                     placeholder="NY"
                   />
                 </div>
@@ -762,8 +872,8 @@ export default function CandidateProfile() {
                   <Label htmlFor="postalCode">Postal Code</Label>
                   <Input
                     id="postalCode"
-                    value={profileData.postalCode}
-                    onChange={(e) => setProfileData({ ...profileData, postalCode: e.target.value })}
+                    value={profileQueryData.postalCode}
+                    onChange={(e) => setProfileData({ ...profileQueryData, postalCode: e.target.value })}
                     placeholder="10001"
                   />
                 </div>
@@ -876,15 +986,32 @@ export default function CandidateProfile() {
                         <Trash2 className="h-4 w-4 mr-1" />
                         Remove
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEducationSubmit(education, index)}
-                      >
-                        <Save className="h-4 w-4 mr-1" />
-                        Save
-                      </Button>
+                      {!education.id ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEducationSubmit(education, index)}
+                          disabled={createEducationMutation.isPending}
+                        >
+                          {createEducationMutation.isPending ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-1"></div>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-1" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <div className="flex items-center text-green-600 text-sm">
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Saved
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -984,15 +1111,32 @@ export default function CandidateProfile() {
                         <Trash2 className="h-4 w-4 mr-1" />
                         Remove
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExperienceSubmit(experience, index)}
-                      >
-                        <Save className="h-4 w-4 mr-1" />
-                        Save
-                      </Button>
+                      {!experience.id ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExperienceSubmit(experience, index)}
+                          disabled={createExperienceMutation.isPending}
+                        >
+                          {createExperienceMutation.isPending ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-1"></div>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-1" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <div className="flex items-center text-green-600 text-sm">
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Saved
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1024,16 +1168,25 @@ export default function CandidateProfile() {
                       accept=".pdf,.doc,.docx"
                       onChange={handleFileUpload}
                     />
-                    {profile?.resumeUrl && (
-                      <div className="mt-2">
+                    {profileQueryData?.resumeUrl && (
+                      <div className="mt-2 space-y-2">
                         <a 
-                          href={profile.resumeUrl} 
+                          href={profileQueryData.resumeUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-primary hover:underline text-sm"
+                          className="text-primary hover:underline text-sm block"
                         >
                           View Current Resume
                         </a>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => extractResumeTextMutation.mutate()}
+                          disabled={extractResumeTextMutation.isPending}
+                        >
+                          {extractResumeTextMutation.isPending ? "Extracting..." : "Extract Resume Text"}
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -1043,8 +1196,8 @@ export default function CandidateProfile() {
                   <Textarea
                     id="motivationLetter"
                     rows={6}
-                    value={profileData.motivationLetter}
-                    onChange={(e) => setProfileData({ ...profileData, motivationLetter: e.target.value })}
+                    value={profileQueryData.motivationLetter}
+                    onChange={(e) => setProfileData({ ...profileQueryData, motivationLetter: e.target.value })}
                     placeholder="Write a brief motivation letter..."
                   />
                 </div>
@@ -1102,14 +1255,14 @@ export default function CandidateProfile() {
             </Card>
 
             <div className="flex justify-end gap-2">
-              {isProfileComplete({ ...profileData, email: user?.email }) && (
+              {isProfileComplete({ ...profileQueryData, email: user?.email }) && (
                 <Button type="button" variant="outline" onClick={() => { setIsEditing(false); setError(""); }}>
                   Cancel
                 </Button>
               )}
               <Button 
                 type="submit" 
-                disabled={updateProfileMutation.isPending || !isProfileComplete({ ...profileData, email: user?.email })}
+                disabled={updateProfileMutation.isPending || !isProfileComplete({ ...profileQueryData, email: user?.email })}
                 className="px-8"
               >
                 {updateProfileMutation.isPending ? "Saving..." : "Save Profile"}
@@ -1117,6 +1270,7 @@ export default function CandidateProfile() {
             </div>
           </form>
         </main>
+        <ChatbotWidget />
       </div>
     </div>
   );

@@ -224,6 +224,13 @@ export const jobCosts = pgTable("job_costs", {
   incurredAt: timestamp("incurred_at").defaultNow(),
 });
 
+export const companyInfo = pgTable("company_info", {
+  id: serial("id").primaryKey(),
+  sectionName: text("section_name").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   candidate: one(candidates, {
@@ -400,6 +407,8 @@ export type Offer = typeof offers.$inferSelect;
 export type InsertOffer = z.infer<ReturnType<typeof createInsertSchema<typeof offers>>>;
 export type JobCost = typeof jobCosts.$inferSelect;
 export type InsertJobCost = z.infer<ReturnType<typeof createInsertSchema<typeof jobCosts>>>;
+export type CompanyInfo = typeof companyInfo.$inferSelect;
+export type InsertCompanyInfo = z.infer<ReturnType<typeof createInsertSchema<typeof companyInfo>>>;
 
 // Search-related types
 export interface SearchFilters {

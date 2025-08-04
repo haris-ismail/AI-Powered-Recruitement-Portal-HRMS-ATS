@@ -19,7 +19,8 @@ import {
   Star,
   Video,
   CheckCircle,
-  GraduationCap
+  GraduationCap,
+  Download
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
 import React, { useEffect, useState } from "react";
@@ -79,6 +80,11 @@ export default function AdminPipeline() {
   const [weightLoading, setWeightLoading] = useState(false);
   const [weightError, setWeightError] = useState("");
 
+  // Add debug and batch resume extraction functionality
+  const [debugData, setDebugData] = useState<any>(null);
+  const [extractLoading, setExtractLoading] = useState(false);
+  const [extractError, setExtractError] = useState("");
+
   const { data: jobs, error: jobsError } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
     retry: false,
@@ -92,10 +98,18 @@ export default function AdminPipeline() {
 
   const updateApplicationMutation = useMutation({
     mutationFn: async ({ applicationId, status }: { applicationId: number; status: string }) => {
+      console.log("updateApplicationMutation called:", { applicationId, status });
       const response = await apiRequest("PUT", `/api/applications/${applicationId}`, { status });
+      console.log("API response status:", response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API error response:", errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Mutation success:", data);
       toast({
         title: "Success",
         description: "Application status updated successfully",
@@ -103,6 +117,7 @@ export default function AdminPipeline() {
       refetchApplications();
     },
     onError: (error: any) => {
+      console.error("Mutation error:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to update application status",
@@ -157,6 +172,7 @@ export default function AdminPipeline() {
   console.log("Applications data:", applications); // Debug log
 
   const handleStatusChange = (applicationId: number, newStatus: string) => {
+    console.log("handleStatusChange called:", { applicationId, newStatus });
     updateApplicationMutation.mutate({ applicationId, status: newStatus });
   };
 
@@ -218,16 +234,173 @@ export default function AdminPipeline() {
     setWeightLoading(true);
     setWeightError("");
     try {
+      console.log("Applying weights:", jobWeights);
+      console.log("Job ID:", selectedJobId);
+      
       const response = await apiRequest("POST", `/api/jobs/${selectedJobId}/regenerate-scores`, { weights: jobWeights });
+      
+      console.log("Response status:", response.status);
+      
       if (!response.ok) {
         const err = await response.json();
+        console.error("API Error:", err);
         throw new Error(err.message || "Failed to update weights");
       }
+      
+      const result = await response.json();
+      console.log("API Success:", result);
+      
+      // Show success message
+      toast({
+        title: "Success",
+        description: `Updated AI scores for ${result.updated?.length || 0} applicants`,
+      });
+      
       refetchApplications();
     } catch (err: any) {
+      console.error("Weight application error:", err);
       setWeightError(err?.message || "Failed to update weights");
     } finally {
       setWeightLoading(false);
+    }
+  };
+
+  const handleDebugResumeStatus = async () => {
+    if (!selectedJobId) {
+      toast({
+        title: "Error",
+        description: "Please select a job first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await apiRequest("GET", `/api/debug/job/${selectedJobId}/resume-status`);
+      const data = await response.json();
+      setDebugData(data);
+      
+      toast({
+        title: "Debug Info",
+        description: `${data.applicationsWithResumeText}/${data.totalApplications} candidates have resume text`,
+      });
+    } catch (err: any) {
+      console.error("Debug error:", err);
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to get debug info",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBatchExtractResumeText = async () => {
+    if (!selectedJobId) {
+      toast({
+        title: "Error",
+        description: "Please select a job first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setExtractLoading(true);
+    setExtractError("");
+    
+    try {
+      const response = await apiRequest("POST", `/api/jobs/${selectedJobId}/extract-resume-text`);
+      const result = await response.json();
+      
+      toast({
+        title: "Success",
+        description: `Extracted resume text for ${result.summary.extracted} candidates`,
+      });
+      
+      // Refresh debug data
+      handleDebugResumeStatus();
+    } catch (err: any) {
+      console.error("Batch extraction error:", err);
+      setExtractError(err?.message || "Failed to extract resume text");
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to extract resume text",
+        variant: "destructive",
+      });
+    } finally {
+      setExtractLoading(false);
+    }
+  };
+
+  const handleDownloadCSV = async () => {
+    if (!selectedJobId) {
+      toast({
+        title: "No job selected",
+        description: "Please select a job first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Get the selected job title for the filename
+      const selectedJob = jobs?.find(job => job.id.toString() === selectedJobId);
+      const jobTitle = selectedJob?.title || selectedJobId;
+      
+      console.log('Starting CSV download for job:', selectedJobId);
+      console.log('Job title:', jobTitle);
+      
+      // Try to use the apiRequest helper first
+      let response;
+      try {
+        response = await apiRequest("GET", `/api/jobs/${selectedJobId}/download-applications`);
+      } catch (apiError) {
+        console.log('apiRequest failed, trying direct fetch:', apiError);
+        // Fallback to direct fetch with proper headers
+        response = await fetch(`/api/jobs/${selectedJobId}/download-applications`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'text/csv',
+          },
+          credentials: "include",
+        });
+      }
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      // Get the CSV content
+      const csvContent = await response.text();
+      console.log('CSV content length:', csvContent.length);
+      console.log('CSV preview:', csvContent.substring(0, 200));
+      
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `applications_${jobTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "CSV Download Started",
+        description: "Your applications CSV file is being downloaded.",
+      });
+    } catch (error: any) {
+      console.error('CSV download error:', error);
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download CSV file. Please check if you're logged in and try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -328,38 +501,289 @@ export default function AdminPipeline() {
             </CardContent>
           </Card>
 
-          {/* Job-level weight adjustment UI (moved here) */}
+          {/* Enhanced AI Scoring Weights UI */}
           {selectedJobId && (
-            <div className="max-w-4xl mx-auto mb-4 p-4 bg-white border rounded shadow-sm">
-              <div className="font-semibold mb-2 text-primary">AI Scoring Weights for this Job (must sum to 1.0)</div>
-              <div className="flex gap-4 flex-wrap mb-2">
-                {Object.entries(jobWeights).map(([k, v]) => (
-                  <div key={k} className="flex flex-col items-center">
-                    <label className="text-xs font-medium mb-1">{k.replace(/Score$/, "")}</label>
+            <Card className="mb-6 border-2 border-gradient-to-r from-blue-50 to-purple-50">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center space-x-2 text-lg">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <span>AI Scoring Weights Configuration</span>
+                </CardTitle>
+                <p className="text-sm text-gray-600">Customize how AI evaluates candidates for this position</p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Total Weight Progress */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Total Weight</span>
+                    <span className={`text-sm font-bold ${Object.values(jobWeights).reduce((a, b) => a + b, 0) === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                      {Object.values(jobWeights).reduce((a, b) => a + b, 0).toFixed(2)} / 1.00
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        Object.values(jobWeights).reduce((a, b) => a + b, 0) === 1 
+                          ? 'bg-gradient-to-r from-green-400 to-green-600' 
+                          : 'bg-gradient-to-r from-red-400 to-red-600'
+                      }`}
+                      style={{ width: `${Math.min(100, Object.values(jobWeights).reduce((a, b) => a + b, 0) * 100)}%` }}
+                    ></div>
+                  </div>
+                  {Object.values(jobWeights).reduce((a, b) => a + b, 0) !== 1 && (
+                    <p className="text-xs text-red-600 mt-1">Weights must sum to exactly 1.00</p>
+                  )}
+                </div>
+
+                {/* Weight Sliders */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {Object.entries(jobWeights).map(([key, value]) => {
+                    const label = key.replace(/Score$/, "");
+                    const icon = {
+                      Education: "🎓",
+                      Skills: "⚡",
+                      ExperienceYears: "📅",
+                      ExperienceRelevance: "🎯"
+                    }[label] || "📊";
+                    
+                    return (
+                                             <div key={key} className="bg-white border border-gray-200 rounded-lg p-4 weight-card">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xl">{icon}</span>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{label}</h4>
+                              <p className="text-xs text-gray-500">Impact on AI scoring</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-blue-600">{(value * 100).toFixed(0)}%</div>
+                            <div className="text-xs text-gray-500">Weight</div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={value}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setJobWeights(w => ({ ...w, [key]: val }));
+                              }}
+                              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                              style={{
+                                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${value * 100}%, #e5e7eb ${value * 100}%, #e5e7eb 100%)`
+                              }}
+                            />
                     <input
                       type="number"
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={v}
-                      onChange={e => {
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={value}
+                              onChange={(e) => {
                         const val = parseFloat(e.target.value);
-                        setJobWeights(w => ({ ...w, [k]: isNaN(val) ? 0 : val }));
+                                setJobWeights(w => ({ ...w, [key]: isNaN(val) ? 0 : val }));
                       }}
-                      className="w-20 px-2 py-1 border rounded text-xs"
+                              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
+                          
+                          {/* Visual weight indicator */}
+                          <div className="flex space-x-1">
+                            {[...Array(10)].map((_, i) => (
+                              <div
+                                key={i}
+                                className={`h-1 flex-1 rounded ${
+                                  i < Math.floor(value * 10) 
+                                    ? 'bg-gradient-to-r from-blue-400 to-blue-600' 
+                                    : 'bg-gray-200'
+                                }`}
+                              ></div>
                 ))}
               </div>
-              <Button
-                size="sm"
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                                    <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setJobWeights({
+                        EducationScore: 0.4,
+                        SkillsScore: 0.3,
+                        ExperienceYearsScore: 0.2,
+                        ExperienceRelevanceScore: 0.1,
+                      })}
+                    >
+                      Reset to Default
+                    </Button>
+                                         <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={() => {
+                         const total = Object.values(jobWeights).reduce((a, b) => a + b, 0);
+                         if (total > 0) {
+                           setJobWeights({
+                             EducationScore: jobWeights.EducationScore / total,
+                             SkillsScore: jobWeights.SkillsScore / total,
+                             ExperienceYearsScore: jobWeights.ExperienceYearsScore / total,
+                             ExperienceRelevanceScore: jobWeights.ExperienceRelevanceScore / total,
+                           });
+                         }
+                       }}
+                     >
+                       Normalize Weights
+                     </Button>
+                                          <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={async () => {
+                         try {
+                           console.log("Testing AI scoring with weights:", jobWeights);
+                           const response = await apiRequest("POST", "/api/test-ai-scoring", {
+                             resume: "Sample resume with software development experience",
+                             job_description: "Software Developer position",
+                             weights: jobWeights
+                           });
+                           const result = await response.json();
+                           console.log("Test result:", result);
+                           toast({
+                             title: "Test Complete",
+                             description: `AI Score: ${result.result?.WeightedScore || 'N/A'}`,
+                           });
+                         } catch (err: any) {
+                           console.error("Test error:", err);
+                           toast({
+                             title: "Test Failed",
+                             description: err?.message || "Unknown error",
+                             variant: "destructive",
+                           });
+                         }
+                       }}
+                     >
+                       Test AI Scoring
+                     </Button>
+                  </div>
+                  
+                  <Button
                 onClick={handleApplyWeights}
                 disabled={weightLoading || Object.values(jobWeights).reduce((a, b) => a + b, 0) !== 1}
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6"
               >
-                {weightLoading ? "Updating..." : "Apply Weights to All Applicants"}
+                    {weightLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Updating...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>Apply Weights to All Applicants</span>
+                      </div>
+                    )}
               </Button>
-              {weightError && <div className="text-red-600 text-xs mt-1">{weightError}</div>}
-            </div>
+                </div>
+                
+                {weightError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="text-sm text-red-600">{weightError}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Debug and Batch Extraction Section */}
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <Button
+                      onClick={handleDebugResumeStatus}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center space-x-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <span>Debug Resume Status</span>
+                    </Button>
+
+                    <Button
+                      onClick={handleBatchExtractResumeText}
+                      disabled={extractLoading}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center space-x-2"
+                    >
+                      {extractLoading ? (
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      )}
+                      <span>{extractLoading ? "Extracting..." : "Batch Extract Resume Text"}</span>
+                    </Button>
+
+                    <Button
+                      onClick={handleDownloadCSV}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center space-x-2 bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download CSV</span>
+                    </Button>
+                  </div>
+
+                  {debugData && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm font-medium text-blue-800">Debug Info</span>
+                      </div>
+                      <div className="text-sm text-blue-700">
+                        <p>Job: {debugData.jobTitle}</p>
+                        <p>Total Applications: {debugData.totalApplications}</p>
+                        <p>With Resume Text: {debugData.applicationsWithResumeText}</p>
+                        <p>Without Resume Text: {debugData.applicationsWithoutResumeText}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {extractError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm text-red-600">{extractError}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {selectedJobId ? (

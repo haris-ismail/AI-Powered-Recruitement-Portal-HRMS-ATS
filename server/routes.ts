@@ -5,10 +5,10 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
-import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema, type SearchFilters } from "@shared/schema";
+import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema, type SearchFilters, candidates } from "@shared/schema";
 import { z } from "zod";
 import { spawn } from "child_process";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { applications, offers, jobCosts, users } from "@shared/schema";
 import crypto from "crypto";
@@ -272,7 +272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/register', async (req, res) => {
     try {
       // Extract user data (email, password) and candidate data (cnic) separately
-      const { email, password, cnic } = req.body;
+      const { email, password } = req.body;
       
       // Validate user data
       const userData = insertUserSchema.parse({ email, password });
@@ -295,15 +295,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingCnic) {
         console.log('Registration failed: CNIC already exists', { cnic });
         return res.status(400).json({ message: 'CNIC already registered' });
-      }
-
-      // Check CNIC uniqueness
-      if (!cnic) {
-        return res.status(400).json({ message: 'CNIC is required' });
-      }
-      const existingCnic = await storage.getCandidateByCnic(cnic);
-      if (existingCnic) {
-        return res.status(400).json({ message: 'CNIC already exists' });
       }
 
       // Hash password
@@ -545,7 +536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Call Python script to extract resume text
       let resumeText = '';
       try {
-        const python = spawn('python', [
+        const python = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', [
           './server/resume_parser/extract_resume_text.py',
           resumePath
         ], {
@@ -646,11 +637,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const jobData = insertJobSchema.parse(req.body);
       const job = await storage.createJob(jobData);
+      
+      // If assessmentTemplateId is provided, create the job-assessment link
+      if (jobData.assessmentTemplateId) {
+        await storage.createJobAssessment(job.id, {
+          templateId: jobData.assessmentTemplateId,
+          isRequired: true
+        });
+      }
+      
       res.status(201).json(job);
     } catch (error: unknown) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
+      console.error('Job creation error:', error);
       res.status(500).json({ message: 'Server error' });
     }
   });
@@ -710,25 +711,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/job-templates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
-    try {
-      const templateData = insertJobTemplateSchema.partial().parse(req.body);
-      const template = await storage.updateJobTemplate(parseInt(req.params.id), templateData);
-      res.json(template);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Server error' });
-    }
-  });
-
   app.delete('/api/job-templates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       await storage.deleteJobTemplate(parseInt(req.params.id));
       res.status(204).send();
     } catch (error: unknown) {
       res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // Admin: Download applications as CSV for a job
+  app.get('/api/jobs/:jobId/download-applications', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      
+      // Fetch job details
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: 'Job not found' });
+      }
+      
+      // Fetch all applications for the job with candidate profiles
+      const applications = await storage.getApplicationsByJob(jobId);
+      
+      if (applications.length === 0) {
+        return res.status(404).json({ message: 'No applications found for this job' });
+      }
+      
+      // Get candidate profiles and skills for all applications
+      const applicationsWithProfiles = await Promise.all(
+        applications.map(async (application) => {
+          const profile = await storage.getCandidateWithProfile(application.candidateId);
+          const skills = await storage.getCandidateSkills(application.candidateId);
+          return {
+            application,
+            profile,
+            skills
+          };
+        })
+      );
+      
+      // Create CSV content
+      const csvHeaders = [
+        'Application ID',
+        'Job Title',
+        'Candidate Name',
+        'Email',
+        'Phone',
+        'City',
+        'Date of Birth',
+        'Applied Date',
+        'Pipeline Status',
+        'AI Score',
+        'Education Score',
+        'Skills Score', 
+        'Experience Years Score',
+        'Experience Relevance Score',
+        'AI Reasoning',
+        'Red Flags',
+        'Education',
+        'Experience',
+        'Skills',
+        'Motivation Letter'
+      ];
+      
+      const csvRows = applicationsWithProfiles.map(({ application, profile, skills }) => {
+        // Format education
+        const education = profile?.education?.map(edu => 
+          `${edu.degree} from ${edu.institution} (${edu.fromDate} - ${edu.toDate})`
+        ).join('; ') || '';
+        
+        // Format experience
+        const experience = profile?.experience?.map(exp => 
+          `${exp.role} at ${exp.company} (${exp.fromDate} - ${exp.toDate}): ${exp.skills}`
+        ).join('; ') || '';
+        
+        // Format skills
+        const skillsList = skills?.map(skill => skill.skill).join(', ') || '';
+        
+        // Format AI reasoning (remove newlines for CSV)
+        const reasoning = application.ai_score_breakdown?.reasoning?.replace(/\n/g, ' ') || '';
+        
+        // Format red flags
+        const redFlags = Array.isArray(application.red_flags) 
+          ? application.red_flags.join(', ')
+          : application.red_flags || '';
+        
+        return [
+          application.id,
+          job.title,
+          `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim(),
+          profile?.email || '',
+          profile?.phone || '',
+          profile?.city || '',
+          profile?.dateOfBirth || '',
+          new Date(application.appliedAt).toLocaleDateString(),
+          application.status,
+          application.ai_score || '',
+          application.ai_score_breakdown?.EducationScore || '',
+          application.ai_score_breakdown?.SkillsScore || '',
+          application.ai_score_breakdown?.ExperienceYearsScore || '',
+          application.ai_score_breakdown?.ExperienceRelevanceScore || '',
+          reasoning,
+          redFlags,
+          education,
+          experience,
+          skillsList,
+          profile?.motivationLetter || ''
+        ];
+      });
+      
+      // Combine headers and rows
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      
+      // Set response headers for CSV download
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="applications_${job.title.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv"`);
+      
+      res.send(csvContent);
+      
+    } catch (error) {
+      console.error('Error downloading applications CSV:', error);
+      res.status(500).json({ message: 'Failed to download applications CSV', details: error?.message });
     }
   });
 
@@ -751,246 +857,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Assessment interfaces
-  interface AssessmentStartRequest {
-    jobId?: string;
-  }
-
-  interface AssessmentStartResponse {
-    attemptId: number;
-    success: boolean;
-    message: string;
-    templateId: number;
-    status?: string;
-  }
-
-  // Job templates
-  app.get('/api/job-templates', authenticateToken, requireRole('admin'), async (req: any, res) => {
+  app.post('/api/applications', authenticateToken, async (req: any, res) => {
     try {
-      const templates = await storage.getJobTemplates();
-      res.json(templates);
-    } catch (error: unknown) {
-      res.status(500).json({ message: 'Server error' });
-    }
-  });
-
-  app.post('/api/job-templates', authenticateToken, requireRole('admin'), async (req: any, res) => {
-    try {
-      const templateData = insertJobTemplateSchema.parse(req.body);
-      const template = await storage.createJobTemplate(templateData);
-      res.status(201).json(template);
-    } catch (error: unknown) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Server error' });
-    }
-});
-
-app.delete('/api/job-templates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
-  try {
-    await storage.deleteJobTemplate(parseInt(req.params.id));
-    res.status(204).send();
-  } catch (error: unknown) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Application routes
-app.get('/api/applications', authenticateToken, async (req: any, res) => {
-  try {
-    if (req.user.role === 'admin') {
-      const applications = await storage.getApplications();
-      return res.json(applications);
-    } else {
-      const candidate = await storage.getCandidate(req.user.id);
-      console.log('Candidate fetched:', candidate);
-      if (!candidate) {
-        return res.status(404).json({ message: 'Profile not found' });
-      }
-
-      const applicationData = insertApplicationSchema.parse({
-        ...req.body,
-        candidateId: candidate.id
-      });
-      console.log('Application data to create:', applicationData);
-
-      const application = await storage.createApplication(applicationData);
-      console.log('Application created:', application);
-
-      // --- AI SCORING INTEGRATION ---
-      try {
-        const profile = await storage.getCandidateWithProfile(candidate.id);
-        const skills = await storage.getCandidateSkills(candidate.id);
-        const job = await storage.getJob(application.jobId);
-        if (!profile.resumeText) {
-          return res.status(400).json({ message: 'Please upload a resume before applying for a job.' });
+      if (req.user.role === 'admin') {
+        const applications = await storage.getApplications();
+        return res.json(applications);
+      } else {
+        const candidate = await storage.getCandidate(req.user.id);
+        console.log('Candidate fetched:', candidate);
+        if (!candidate) {
+          return res.status(404).json({ message: 'Profile not found' });
         }
-        const resumeText = profile.resumeText;
-        const experience_dates = (profile.experience || []).map(e => [e.fromDate, e.toDate]);
-        const education_dates = (profile.education || []).map(e => [e.fromDate, e.toDate]);
-        const aiInput = {
-          resume: resumeText,
-          job_description: job?.description || '',
-          experience_dates,
-          education_dates,
-          groq_api_key: process.env.GROQ_API_KEY || undefined
-        };
-        console.log('AI input:', aiInput);
-        // When spawning the Python process for AI scoring, pass the environment explicitly
-        const py = spawn('python', ['server/resume_parser/ai_scoring.py'], {
-          env: { ...process.env }
+
+        const applicationData = insertApplicationSchema.parse({
+          ...req.body,
+          candidateId: candidate.id
         });
-        let output = '';
-        let errorOutput = '';
-        py.stdout.on('data', (data) => { output += data.toString(); });
-        py.stderr.on('data', (data) => { errorOutput += data.toString(); });
-        py.stdin.write(JSON.stringify(aiInput));
-        py.stdin.end();
-        await new Promise((resolve) => {
-          py.on('close', () => resolve(null));
-        });
-        console.log('AI script output:', output);
-        if (errorOutput) console.error('AI script error output:', errorOutput);
-        let aiResult;
+        console.log('Application data to create:', applicationData);
+
+        const application = await storage.createApplication(applicationData);
+        console.log('Application created:', application);
+
+        // --- AI SCORING INTEGRATION ---
         try {
-          aiResult = JSON.parse(output);
-        } catch (e) {
-          console.error('Error parsing AI script output:', output, e);
-          aiResult = null;
-        }
-        console.log('Parsed AI result:', aiResult);
-        if (aiResult && aiResult.WeightedScore !== undefined) {
-          await storage.updateApplication(application.id, {
-            ai_score: aiResult.WeightedScore,
-            ai_score_breakdown: aiResult.Scores,
-            red_flags: aiResult.RedFlag
+          const profile = await storage.getCandidateWithProfile(candidate.id);
+          const skills = await storage.getCandidateSkills(candidate.id);
+          const job = await storage.getJob(application.jobId);
+          if (!profile.resumeText) {
+            return res.status(400).json({ message: 'Please upload a resume before applying for a job.' });
+          }
+          const resumeText = profile.resumeText;
+          const experience_dates = (profile.experience || []).map(e => [e.fromDate, e.toDate]);
+          const education_dates = (profile.education || []).map(e => [e.fromDate, e.toDate]);
+          const aiInput = {
+            resume: resumeText,
+            job_description: job?.description || '',
+            experience_dates,
+            education_dates,
+            groq_api_key: process.env.GROQ_API_KEY || undefined
+          };
+          console.log('AI input:', aiInput);
+          // When spawning the Python process for AI scoring, pass the environment explicitly
+          const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', ['server/resume_parser/ai_scoring.py'], {
+            env: { ...process.env }
           });
-        } else {
-          console.error('AI result missing WeightedScore or is null:', aiResult);
+          let output = '';
+          let errorOutput = '';
+          py.stdout.on('data', (data) => { output += data.toString(); });
+          py.stderr.on('data', (data) => { errorOutput += data.toString(); });
+          py.stdin.write(JSON.stringify(aiInput));
+          py.stdin.end();
+          await new Promise((resolve) => {
+            py.on('close', () => resolve(null));
+          });
+          console.log('AI script output:', output);
+          if (errorOutput) console.error('AI script error output:', errorOutput);
+          let aiResult;
+          try {
+            aiResult = JSON.parse(output);
+          } catch (e) {
+            console.error('Error parsing AI script output:', output, e);
+            aiResult = null;
+          }
+          console.log('Parsed AI result:', aiResult);
+          if (aiResult && aiResult.WeightedScore !== undefined) {
+            await storage.updateApplication(application.id, {
+              ai_score: aiResult.WeightedScore,
+              ai_score_breakdown: {
+                ...aiResult.Scores,
+                reasoning: aiResult.Reasoning || "No reasoning provided"
+              },
+              red_flags: aiResult.RedFlag
+            });
+          } else {
+            console.error('AI result missing WeightedScore or is null:', aiResult);
+          }
+        } catch (err) {
+          console.error('AI scoring error:', err);
         }
-      } catch (err) {
-        console.error('AI scoring error:', err);
-      }
-      // --- END AI SCORING INTEGRATION ---
+        // --- END AI SCORING INTEGRATION ---
 
-      res.status(201).json(application);
+        res.status(201).json(application);
+      }
     } catch (error) {
       console.error('Error in POST /api/applications:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
       res.status(500).json({ message: 'Server error' });
-    }
-  } catch (error: unknown) {
-    console.error('Error fetching applications:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch applications';
-    return res.status(500).json({ 
-      success: false, 
-      message: errorMessage 
-    });
-  }
-});
-
-  interface ApplicationRequest {
-    jobId: string;
-    status?: string;
-  }
-
-  interface ApplicationResponse {
-    success: boolean;
-    message: string;
-    application?: any;
-    error?: string;
-    details?: string;
-  }
-
-  app.post('/api/applications', authenticateToken, async (req: any, res) => {
-    try {
-      const { jobId, status } = req.body as ApplicationRequest;
-      if (!jobId || isNaN(parseInt(jobId))) {
-        return res.status(400).json({ message: 'Invalid job ID' });
-      }
-
-      const candidate = await storage.getCandidate(req.user.id);
-      if (!candidate) {
-        return res.status(404).json({ message: 'Candidate not found' });
-      }
-
-      const job = await storage.getJobById(parseInt(jobId));
-      if (!job) {
-        return res.status(404).json({
-          message: 'Job not found',
-          jobId: jobId
-        });
-      }
-
-      const existingApplication = await storage.getApplicationByCandidateAndJob(candidate.id, parseInt(jobId));
-      if (existingApplication) {
-        return res.status(400).json({ 
-          message: 'You have already applied to this job',
-          jobId: jobId,
-          candidateId: candidate.id
-        });
-      }
-
-      const assessments = await storage.getAssessmentsByJob(parseInt(jobId));
-      const requiredAssessments = assessments.filter(a => a.isRequired);
-      
-      if (requiredAssessments.length > 0) {
-        const completedAssessments = await storage.getCandidateAssessments(candidate.id);
-        const pendingAssessments = requiredAssessments.filter(a => 
-          !completedAssessments.find(ca => 
-            ca.templateId === a.templateId && 
-            ca.jobId === parseInt(jobId) && 
-            ca.status === 'completed'
-          )
-        );
-
-        if (pendingAssessments.length > 0) {
-          const pendingAssessment = pendingAssessments[0];
-          return res.status(400).json({
-            message: 'Required assessment not completed',
-            assessmentId: pendingAssessment.templateId,
-            jobId: jobId,
-            required: true
-          });
-        }
-      }
-
-      const applicationData = {
-        jobId: parseInt(jobId),
-        candidateId: candidate.id,
-        status: status || 'pending',
-        appliedAt: new Date()
-      };
-
-      try {
-        const application = await storage.createApplication(applicationData);
-        res.status(201).json({
-          success: true,
-          message: 'Application submitted successfully',
-          application
-        } as ApplicationResponse);
-      } catch (createError: unknown) {
-        console.error('=== APPLICATION CREATION ERROR ===', createError);
-        const createErrorMessage = createError instanceof Error ? createError.message : 'Failed to create application';
-        const createErrorDetails = createError instanceof Error ? createError.stack : 'No details available';
-        res.status(500).json({ 
-          message: 'Failed to create application', 
-          error: createErrorMessage,
-          details: createErrorDetails
-        } as ApplicationResponse);
-      }
-    } catch (error: unknown) {
-      console.error('=== UNEXPECTED ERROR IN APPLICATION CREATION ===', error);
-      const errorMessage = error instanceof Error ? error.message : 'Server error';
-      const errorDetails = error instanceof Error ? error.stack : 'No details available';
-      res.status(500).json({ 
-        message: 'Server error', 
-        error: errorMessage,
-        details: errorDetails
-      } as ApplicationResponse);
     }
   });
 
@@ -1026,7 +980,7 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
       };
       console.log('AI input (regenerate):', aiInput);
       const { spawn } = (await import('child_process'));
-      const py = spawn('python', ['./server/resume_parser/ai_scoring.py'], {
+      const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', ['./server/resume_parser/ai_scoring.py'], {
         env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
       });
       let output = '';
@@ -1051,7 +1005,10 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
       if (aiResult && aiResult.WeightedScore !== undefined) {
         await storage.updateApplication(applicationId, {
           ai_score: aiResult.WeightedScore,
-          ai_score_breakdown: aiResult.Scores,
+          ai_score_breakdown: {
+            ...aiResult.Scores,
+            reasoning: aiResult.Reasoning || "No reasoning provided"
+          },
           red_flags: aiResult.RedFlag
         });
       }
@@ -1063,28 +1020,101 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
     }
   });
 
+  // Admin: Update application status
+  app.put('/api/applications/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const applicationId = parseInt(req.params.id);
+      const { status } = req.body;
+      
+      if (!status) {
+        return res.status(400).json({ message: 'Status is required' });
+      }
+      
+      // Validate status values
+      const validStatuses = ['applied', 'shortlisted', 'interview', 'hired', 'onboarded', 'rejected'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: 'Invalid status value' });
+      }
+      
+      // Update application status
+      await storage.updateApplication(applicationId, { status });
+      
+      // Fetch updated application
+      const updatedApplication = await storage.getApplication(applicationId);
+      
+      res.json(updatedApplication);
+    } catch (error) {
+      console.error('Error updating application status:', error);
+      res.status(500).json({ message: 'Failed to update application status', details: error?.message });
+    }
+  });
+
   // Batch regenerate AI scores for all applications of a job
   app.post('/api/jobs/:jobId/regenerate-scores', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const jobId = parseInt(req.params.jobId);
       const weights = req.body.weights;
+      
+      console.log('Regenerating scores for job:', jobId);
+      console.log('Weights received:', weights);
+      
       if (!weights || typeof weights !== 'object') {
         return res.status(400).json({ message: 'Weights are required.' });
       }
+      
       // Fetch all applications for the job
       const applications = await storage.getApplicationsByJob(jobId);
       const job = await storage.getJob(jobId);
+      
+      console.log('Found applications:', applications.length);
+      console.log('Job:', job?.title);
+      console.log('Applications:', applications.map(app => ({ id: app.id, candidateId: app.candidateId, status: app.status })));
+      
       if (!job) {
         return res.status(404).json({ message: 'Job not found.' });
       }
+      
       let updated = [];
+      let processed = 0;
+      let skipped = 0;
+      
       for (const application of applications) {
+        console.log(`\n--- Processing application ${processed + 1}/${applications.length} ---`);
+        console.log(`Application ID: ${application.id}, Candidate ID: ${application.candidateId}, Status: ${application.status}`);
+        
         const profile = await storage.getCandidateWithProfile(application.candidateId);
-        if (!profile || !profile.resumeText) {
-          continue; // Skip if no profile or resume
+        console.log(`Profile found: ${!!profile}`);
+        console.log(`Profile data:`, {
+          id: profile?.id,
+          firstName: profile?.firstName,
+          lastName: profile?.lastName,
+          hasResumeText: !!profile?.resumeText,
+          resumeTextLength: profile?.resumeText?.length || 0,
+          hasExperience: !!profile?.experience?.length,
+          hasEducation: !!profile?.education?.length,
+          resumeTextPreview: profile?.resumeText?.substring(0, 50) || 'No resume text'
+        });
+        
+        if (!profile) {
+          console.log(`Skipping application ${application.id} - no profile found`);
+          skipped++;
+          continue;
         }
+        
+        if (!profile.resumeText) {
+          console.log(`Skipping application ${application.id} - no resume text`);
+          console.log(`Profile keys:`, Object.keys(profile));
+          skipped++;
+          continue;
+        }
+        
         const experience_dates = (profile.experience || []).map((e: any) => [e.fromDate, e.toDate]);
         const education_dates = (profile.education || []).map((e: any) => [e.fromDate, e.toDate]);
+        
+        console.log(`Experience dates: ${experience_dates.length}`);
+        console.log(`Education dates: ${education_dates.length}`);
+        console.log(`Resume text preview: ${profile.resumeText.substring(0, 100)}...`);
+        
         const aiInput = {
           resume: profile.resumeText,
           job_description: job.description || '',
@@ -1093,37 +1123,363 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
           weights,
           groq_api_key: process.env.GROQ_API_KEY || undefined
         };
+        
+        console.log('=== AI INPUT DEBUG ===');
+        console.log('Weights:', aiInput.weights);
+        console.log('Resume text length:', aiInput.resume.length);
+        console.log('Resume text preview:', aiInput.resume.substring(0, 200) + '...');
+        console.log('Job description length:', aiInput.job_description.length);
+        console.log('Job description preview:', aiInput.job_description.substring(0, 200) + '...');
+        console.log('Experience dates count:', aiInput.experience_dates.length);
+        console.log('Education dates count:', aiInput.education_dates.length);
+        console.log('=== END AI INPUT DEBUG ===');
+        
+        // Validate input data
+        if (!aiInput.resume || aiInput.resume.trim().length === 0) {
+          console.log(`ERROR: No resume text for application ${application.id}`);
+          skipped++;
+          continue;
+        }
+        
+        if (!aiInput.job_description || aiInput.job_description.trim().length === 0) {
+          console.log(`ERROR: No job description for application ${application.id}`);
+          skipped++;
+          continue;
+        }
+        
         const { spawn } = await import('child_process');
         let output = '';
         let errorOutput = '';
-        const py = spawn('python', ['./server/resume_parser/ai_scoring.py'], {
+        
+        console.log('Starting Python process...');
+        console.log('Input JSON size:', JSON.stringify(aiInput).length, 'characters');
+        
+        // Check if Python script exists
+        const fs = await import('fs');
+        const path = await import('path');
+        const scriptPath = path.join(process.cwd(), 'server', 'resume_parser', 'ai_scoring.py');
+        console.log('Python script path:', scriptPath);
+        console.log('Script exists:', fs.existsSync(scriptPath));
+        
+        const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', [scriptPath], {
           env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
         });
-        py.stdout.on('data', (data: any) => { output += data.toString(); });
-        py.stderr.on('data', (data: any) => { errorOutput += data.toString(); });
-        py.stdin.write(JSON.stringify(aiInput));
-        py.stdin.end();
-        await new Promise((resolve) => {
-          py.on('close', () => resolve(null));
+        
+        py.stdout.on('data', (data: any) => { 
+          output += data.toString();
+          console.log('Python stdout:', data.toString());
         });
+        
+        py.stderr.on('data', (data: any) => { 
+          errorOutput += data.toString();
+          console.log('Python stderr:', data.toString());
+        });
+        
+        py.on('error', (error: any) => {
+          console.error('Python process error:', error);
+        });
+        
+        const inputJson = JSON.stringify(aiInput);
+        console.log('Sending input to Python script...');
+        console.log('Input JSON size:', inputJson.length, 'characters');
+        console.log('Input JSON preview:', inputJson.substring(0, 500) + '...');
+        
+        py.stdin.write(inputJson);
+        py.stdin.end();
+        console.log('Input sent to Python script');
+        
+        // Add timeout and better error handling
+        let processCompleted = false;
+        
+                  await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              console.log('Python process timed out');
+              py.kill();
+              reject(new Error('Python process timed out'));
+            }, 30000); // 30 second timeout
+            
+            py.on('close', (code) => {
+              clearTimeout(timeout);
+              console.log(`Python process exited with code ${code}`);
+              console.log(`Python stdout length: ${output.length}`);
+              console.log(`Python stderr length: ${errorOutput.length}`);
+              
+              if (code !== 0) {
+                console.log('Python stderr output:', errorOutput);
+                reject(new Error(`Python process failed with code ${code}`));
+              } else {
+                console.log('Python process completed successfully');
+                resolve(null);
+              }
+            });
+          });
+        
         let aiResult;
         try {
-          aiResult = JSON.parse(output);
-        } catch (e: any) {
+          console.log('Attempting to parse AI result...');
+          console.log('Raw output length:', output.length);
+          console.log('Raw output:', output);
+          
+          if (!output || output.trim().length === 0) {
+            console.log('ERROR: No output from Python script');
+            aiResult = null;
+          } else {
+            aiResult = JSON.parse(output);
+            console.log('AI Result parsed successfully:', aiResult);
+            console.log('Weighted Score:', aiResult.WeightedScore);
+            console.log('Scores Breakdown:', aiResult.Scores);
+            console.log('Red Flags:', aiResult.RedFlag);
+          }
+        } catch (e: unknown) {
+          console.error('Failed to parse AI result:', e);
+          console.log('Raw output:', output);
+          console.log('Error output:', errorOutput);
           aiResult = null;
         }
+        
         if (aiResult && aiResult.WeightedScore !== undefined) {
+          console.log(`Updating application ${application.id} with score ${aiResult.WeightedScore}`);
           await storage.updateApplication(application.id, {
             ai_score: aiResult.WeightedScore,
-            ai_score_breakdown: aiResult.Scores,
+            ai_score_breakdown: {
+              ...aiResult.Scores,
+              reasoning: aiResult.Reasoning || "No reasoning provided"
+            },
             red_flags: aiResult.RedFlag
           });
-          updated.push({ applicationId: application.id, ai_score: aiResult.WeightedScore, red_flags: aiResult.RedFlag });
+          updated.push({ 
+            applicationId: application.id, 
+            ai_score: aiResult.WeightedScore, 
+            red_flags: aiResult.RedFlag 
+          });
+          console.log(`Successfully updated application ${application.id} with score ${aiResult.WeightedScore}`);
+        } else {
+          console.log(`No valid AI result for application ${application.id}`);
+          console.log('AI Result was:', aiResult);
         }
+        
+        processed++;
       }
-      res.json({ updated });
+      
+      console.log(`\n=== PROCESSING SUMMARY ===`);
+      console.log(`Total applications: ${applications.length}`);
+      console.log(`Processed: ${processed}`);
+      console.log(`Skipped: ${skipped}`);
+      console.log(`Successfully updated: ${updated.length}`);
+      console.log(`Updated applications:`, updated.map(u => ({ id: u.applicationId, score: u.ai_score })));
+      
+      res.json({ 
+        updated,
+        summary: {
+          total: applications.length,
+          processed,
+          skipped,
+          updated: updated.length
+        }
+      });
+    } catch (error: unknown) {
+      console.error('Error in regenerate-scores:', error);
+      res.status(500).json({ message: 'Failed to batch regenerate AI scores', details: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Chatbot API endpoint
+  app.post('/api/chat', authenticateToken, async (req: any, res) => {
+    try {
+      const { message, conversation_history = [] } = req.body;
+      const user = req.user;
+      
+      if (!message) {
+        return res.status(400).json({ message: 'Message is required' });
+      }
+      
+      // Call Python chatbot
+      const { spawn } = await import('child_process');
+      const pythonProcess = spawn('python', [
+        'Chatbot/groq_db_v2.py',
+        '--message', message,
+        '--user-id', user.id.toString(),
+        '--user-role', user.role,
+        '--history', JSON.stringify(conversation_history)
+      ], {
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+      });
+      
+      let result = '';
+      let error = '';
+      
+      pythonProcess.stdout?.on('data', (data: Buffer) => {
+        result += data.toString();
+      });
+      
+      pythonProcess.stderr?.on('data', (data: Buffer) => {
+        error += data.toString();
+      });
+      
+      const timeoutId = setTimeout(() => {
+        pythonProcess.kill();
+        res.status(408).json({ message: 'Chatbot request timed out' });
+      }, 120000); // 2 minutes timeout
+      
+      pythonProcess.on('close', (code: number | null) => {
+        clearTimeout(timeoutId);
+        if (code !== 0) {
+          console.error('Python chatbot error:', error);
+          return res.status(500).json({ 
+            message: 'Chatbot service error',
+            error: error || 'Unknown error'
+          });
+        }
+        
+        try {
+          result = result.trim();
+          if (!result) {
+            return res.status(500).json({ message: 'Chatbot returned empty response' });
+          }
+          
+          const parsedResult = JSON.parse(result);
+          res.json(parsedResult);
+        } catch (parseError: any) {
+          console.error('Failed to parse chatbot response:', parseError);
+          res.status(500).json({ 
+            message: 'Failed to parse chatbot response',
+            error: parseError.message
+          });
+        }
+      });
+      
+      pythonProcess.on('error', (err: Error) => {
+        clearTimeout(timeoutId);
+        console.error('Failed to start Python chatbot:', err);
+        res.status(500).json({ 
+          message: 'Failed to start chatbot service',
+          error: err.message
+        });
+      });
+      
     } catch (error: any) {
-      res.status(500).json({ message: 'Failed to batch regenerate AI scores', details: error?.message });
+      console.error('Chatbot API error:', error);
+      res.status(500).json({ message: 'Chatbot service error' });
+    }
+  });
+
+  // Test endpoint to check candidates with resume text
+  app.get('/api/test-candidates-resume', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const candidateData = await db.select({
+        id: candidates.id,
+        firstName: candidates.firstName,
+        lastName: candidates.lastName,
+        hasResumeText: sql`CASE WHEN ${candidates.resumeText} IS NOT NULL AND ${candidates.resumeText} != '' THEN true ELSE false END`,
+        resumeTextLength: sql`LENGTH(${candidates.resumeText})`,
+        resumeTextPreview: sql`LEFT(${candidates.resumeText}, 100)`
+      }).from(candidates).limit(10);
+      
+      res.json({ candidates: candidateData });
+    } catch (error: unknown) {
+      console.error('Error checking candidates:', error);
+      res.status(500).json({ 
+        message: 'Failed to check candidates', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
+  // Test endpoint for AI scoring
+  app.post('/api/test-ai-scoring', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const { resume, job_description, weights } = req.body;
+      
+      console.log('Test AI scoring with weights:', weights);
+      
+      const aiInput = {
+        resume: resume || 'Sample resume text',
+        job_description: job_description || 'Sample job description',
+        experience_dates: [],
+        education_dates: [],
+        weights: weights || {
+          EducationScore: 0.4,
+          SkillsScore: 0.3,
+          ExperienceYearsScore: 0.2,
+          ExperienceRelevanceScore: 0.1,
+        }
+      };
+      
+      const { spawn } = await import('child_process');
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      let output = '';
+      let errorOutput = '';
+      
+      const scriptPath = path.join(process.cwd(), 'server', 'resume_parser', 'ai_scoring.py');
+      console.log('Test Python script path:', scriptPath);
+      console.log('Test Script exists:', fs.existsSync(scriptPath));
+      
+              const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', [scriptPath], {
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+      });
+      
+      py.stdout.on('data', (data: any) => { 
+        output += data.toString();
+        console.log('Test Python stdout:', data.toString());
+      });
+      
+      py.stderr.on('data', (data: any) => { 
+        errorOutput += data.toString();
+        console.log('Test Python stderr:', data.toString());
+      });
+      
+      py.on('error', (error: any) => {
+        console.error('Test Python process error:', error);
+      });
+      
+      const inputJson = JSON.stringify(aiInput);
+      console.log('Test Input JSON size:', inputJson.length, 'characters');
+      py.stdin.write(inputJson);
+      py.stdin.end();
+      
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          console.log('Test Python process timed out');
+          py.kill();
+          reject(new Error('Test Python process timed out'));
+        }, 30000);
+        
+        py.on('close', (code) => {
+          clearTimeout(timeout);
+          console.log(`Test Python process exited with code ${code}`);
+          if (code !== 0) {
+            console.log('Test Python stderr output:', errorOutput);
+            reject(new Error(`Test Python process failed with code ${code}`));
+          } else {
+            resolve(null);
+          }
+        });
+      });
+      
+      let aiResult;
+      try {
+        aiResult = JSON.parse(output);
+        console.log('Test AI Result:', aiResult);
+      } catch (e: unknown) {
+        console.error('Failed to parse test AI result:', e);
+        console.log('Test Raw output:', output);
+        aiResult = null;
+      }
+      
+      res.json({ 
+        success: true, 
+        result: aiResult, 
+        output, 
+        errorOutput 
+      });
+    } catch (error: unknown) {
+      console.error('Error in test AI scoring:', error);
+      res.status(500).json({ 
+        message: 'Failed to test AI scoring', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      });
     }
   });
 
@@ -1459,7 +1815,9 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
   });
   app.post('/api/assessment-templates', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
+      console.log('Creating assessment template with data:', req.body);
       const template = await storage.createAssessmentTemplate(req.body);
+      console.log('Assessment template created successfully:', template);
       res.status(201).json(template);
     } catch (error: unknown) {
       console.error('Error creating assessment template:', error);
@@ -1473,13 +1831,96 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
     }
   });
   app.put('/api/assessment-templates/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    console.log(`🔧 [ROUTE] Assessment template update request received`);
+    console.log(`📊 [ROUTE] Request details:`, {
+      templateId: req.params.id,
+      method: req.method,
+      url: req.url,
+      userAgent: req.get('User-Agent'),
+      contentType: req.get('Content-Type')
+    });
+    console.log(`👤 [ROUTE] User details:`, {
+      id: req.user?.id,
+      email: req.user?.email,
+      role: req.user?.role
+    });
+    console.log(`📦 [ROUTE] Request body:`, JSON.stringify(req.body, null, 2));
+    
     try {
-      const template = await storage.updateAssessmentTemplate(parseInt(req.params.id), req.body);
+      const templateId = parseInt(req.params.id);
+      console.log(`🔍 [ROUTE] Parsed template ID: ${templateId} (original: ${req.params.id})`);
+      
+      if (isNaN(templateId)) {
+        console.error(`❌ [ROUTE] Invalid template ID: ${req.params.id}`);
+        return res.status(400).json({ message: 'Invalid template ID' });
+      }
+      
+      // Validate and clean the request body
+      const updateData: any = {};
+      const allowedFields = [
+        'title', 'description', 'categoryId', 'durationMinutes', 
+        'passingScore', 'isActive', 'createdBy'
+      ];
+      
+      console.log(`🧹 [ROUTE] Cleaning update data...`);
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          // Convert numeric fields
+          if (field === 'categoryId' || field === 'durationMinutes' || field === 'passingScore' || field === 'createdBy') {
+            const numValue = Number(req.body[field]);
+            if (!isNaN(numValue)) {
+              updateData[field] = numValue;
+              console.log(`✅ [ROUTE] Validated numeric field ${field}: ${numValue}`);
+            } else {
+              console.warn(`⚠️ [ROUTE] Invalid numeric value for ${field}: ${req.body[field]}`);
+            }
+          }
+          // Convert boolean fields
+          else if (field === 'isActive') {
+            updateData[field] = Boolean(req.body[field]);
+            console.log(`✅ [ROUTE] Validated boolean field ${field}: ${updateData[field]}`);
+          }
+          // String fields
+          else {
+            updateData[field] = String(req.body[field]);
+            console.log(`✅ [ROUTE] Validated string field ${field}: "${updateData[field]}"`);
+          }
+        }
+      }
+      
+      console.log(`🧹 [ROUTE] Cleaned update data:`, JSON.stringify(updateData, null, 2));
+      
+      // Check if there's any data to update
+      if (Object.keys(updateData).length === 0) {
+        console.warn(`⚠️ [ROUTE] No valid fields to update`);
+        return res.status(400).json({ message: 'No valid fields to update' });
+      }
+      
+      console.log(`📞 [ROUTE] Calling storage.updateAssessmentTemplate with templateId: ${templateId}`);
+      const template = await storage.updateAssessmentTemplate(templateId, updateData);
+      
+      console.log(`✅ [ROUTE] Assessment template updated successfully`);
+      console.log(`📊 [ROUTE] Updated template:`, {
+        id: template.id,
+        title: template.title,
+        updatedAt: new Date().toISOString()
+      });
+      
       res.json(template);
     } catch (error: unknown) {
-      console.error('Error updating assessment template:', error);
+      console.error(`❌ [ROUTE] Error updating assessment template:`, error);
+      console.error(`❌ [ROUTE] Error type:`, typeof error);
+      console.error(`❌ [ROUTE] Error message:`, error instanceof Error ? error.message : 'Unknown error');
+      console.error(`❌ [ROUTE] Error stack:`, error instanceof Error ? error.stack : 'No stack available');
+      console.error(`❌ [ROUTE] Request details:`, {
+        templateId: req.params.id,
+        body: JSON.stringify(req.body, null, 2),
+        user: req.user
+      });
+      
       const errorMessage = error instanceof Error ? error.message : 'Server error';
       const errorDetails = error instanceof Error ? error.stack : 'No details available';
+      
       res.status(500).json({ 
         message: 'Server error', 
         error: errorMessage,
@@ -1492,14 +1933,7 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
       await storage.deleteAssessmentTemplate(parseInt(req.params.id));
       res.status(204).send();
     } catch (error: unknown) {
-      console.error('Error deleting assessment template:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Server error';
-      const errorDetails = error instanceof Error ? error.stack : 'No details available';
-      res.status(500).json({ 
-        message: 'Server error', 
-        error: errorMessage,
-        details: errorDetails
-      });
+      res.status(500).json({ message: 'Server error' });
     }
   });
 
@@ -1698,31 +2132,7 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
     }
   });
   
-  // Get pending assessments for a candidate
-  app.get('/api/candidate/pending-assessments', authenticateToken, async (req: any, res) => {
-    try {
-      const candidateId = req.user.id;
-      if (!candidateId) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'Candidate ID is required' 
-        });
-      }
 
-      const assessments = await storage.getPendingAssessments(candidateId);
-      return res.json({
-        success: true,
-        data: assessments
-      });
-    } catch (error: unknown) {
-      console.error('Error fetching pending assessments:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch pending assessments';
-      return res.status(500).json({ 
-        success: false, 
-        message: errorMessage
-      });
-    }
-  });
   app.post('/api/assessment-templates/:id/questions', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const question = await storage.createAssessmentQuestion(parseInt(req.params.id), req.body);
@@ -1837,9 +2247,16 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
     try {
       const templateId = parseInt(req.params.templateId);
       const jobId = req.query.jobId ? parseInt(req.query.jobId as string) : undefined;
-      let attempt = await storage.findAssessmentAttempt(req.user.id, templateId, jobId);
+      
+      // Get candidate ID from user ID
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate profile not found' });
+      }
+      
+      let attempt = await storage.findAssessmentAttempt(candidate.id, templateId, jobId);
       if (!attempt) {
-        const result = await storage.startAssessment(templateId, req.user.id, jobId);
+        const result = await storage.startAssessment(templateId, candidate.id, jobId);
         return res.json({ attemptId: result.attemptId, status: result.status });
       }
       res.json({ attemptId: attempt.id, status: attempt.status });
@@ -1855,13 +2272,58 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
     }
   });
   app.post('/api/assessments/:attemptId/submit', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    console.log(`🚀 [ROUTE] Assessment submission request received`);
+    console.log(`📊 [ROUTE] Request details:`, {
+      attemptId: req.params.attemptId,
+      method: req.method,
+      url: req.url,
+      userAgent: req.get('User-Agent'),
+      contentType: req.get('Content-Type'),
+      contentLength: req.get('Content-Length')
+    });
+    console.log(`👤 [ROUTE] User details:`, {
+      id: req.user?.id,
+      email: req.user?.email,
+      role: req.user?.role
+    });
+    console.log(`📦 [ROUTE] Request body:`, JSON.stringify(req.body, null, 2));
+    
     try {
-      const result = await storage.submitAssessment(parseInt(req.params.attemptId), req.body);
+      // Check if request was aborted
+      if (req.aborted) {
+        console.log(`❌ [ROUTE] Request was aborted before processing`);
+        return res.status(499).json({ message: 'Request aborted' });
+      }
+      
+      const attemptId = parseInt(req.params.attemptId);
+      console.log(`🔍 [ROUTE] Parsed attempt ID: ${attemptId} (original: ${req.params.attemptId})`);
+      
+      if (isNaN(attemptId)) {
+        console.error(`❌ [ROUTE] Invalid attempt ID: ${req.params.attemptId}`);
+        return res.status(400).json({ message: 'Invalid attempt ID' });
+      }
+      
+      console.log(`📞 [ROUTE] Calling storage.submitAssessment with attemptId: ${attemptId}`);
+      const result = await storage.submitAssessment(attemptId, req.body);
+      
+      console.log(`✅ [ROUTE] Assessment submission successful`);
+      console.log(`📊 [ROUTE] Submission result:`, JSON.stringify(result, null, 2));
+      
       res.json(result);
     } catch (error: unknown) {
-      console.error('Error submitting assessment:', error);
+      console.error(`❌ [ROUTE] Error submitting assessment:`, error);
+      console.error(`❌ [ROUTE] Error type:`, typeof error);
+      console.error(`❌ [ROUTE] Error message:`, error instanceof Error ? error.message : 'Unknown error');
+      console.error(`❌ [ROUTE] Error stack:`, error instanceof Error ? error.stack : 'No stack available');
+      console.error(`❌ [ROUTE] Request details:`, {
+        attemptId: req.params.attemptId,
+        body: JSON.stringify(req.body, null, 2),
+        user: req.user
+      });
+      
       const errorMessage = error instanceof Error ? error.message : 'Server error';
       const errorDetails = error instanceof Error ? error.stack : 'No details available';
+      
       res.status(500).json({ 
         message: 'Server error', 
         error: errorMessage,
@@ -1869,14 +2331,56 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
       });
     }
   });
+  
   app.get('/api/assessments/:attemptId/results', authenticateToken, async (req: any, res) => {
+    console.log(`🔍 [ROUTE] Assessment results request received`);
+    console.log(`📊 [ROUTE] Request details:`, {
+      attemptId: req.params.attemptId,
+      method: req.method,
+      url: req.url,
+      userAgent: req.get('User-Agent')
+    });
+    console.log(`👤 [ROUTE] User details:`, {
+      id: req.user?.id,
+      email: req.user?.email,
+      role: req.user?.role
+    });
+    
     try {
-      const result = await storage.getAssessmentResults(parseInt(req.params.attemptId));
+      const attemptId = parseInt(req.params.attemptId);
+      console.log(`🔍 [ROUTE] Parsed attempt ID: ${attemptId} (original: ${req.params.attemptId})`);
+      
+      if (isNaN(attemptId)) {
+        console.error(`❌ [ROUTE] Invalid attempt ID: ${req.params.attemptId}`);
+        return res.status(400).json({ message: 'Invalid attempt ID' });
+      }
+      
+      console.log(`📞 [ROUTE] Calling storage.getAssessmentResults with attemptId: ${attemptId}`);
+      const result = await storage.getAssessmentResults(attemptId);
+      
+      console.log(`✅ [ROUTE] Assessment results retrieved successfully`);
+      console.log(`📊 [ROUTE] Results summary:`, {
+        score: result.score,
+        maxScore: result.maxScore,
+        passed: result.passed,
+        status: result.status,
+        questionCount: result.questions?.length || 0
+      });
+      
       res.json(result);
     } catch (error: unknown) {
-      console.error('Error getting assessment results:', error);
+      console.error(`❌ [ROUTE] Error getting assessment results:`, error);
+      console.error(`❌ [ROUTE] Error type:`, typeof error);
+      console.error(`❌ [ROUTE] Error message:`, error instanceof Error ? error.message : 'Unknown error');
+      console.error(`❌ [ROUTE] Error stack:`, error instanceof Error ? error.stack : 'No stack available');
+      console.error(`❌ [ROUTE] Request details:`, {
+        attemptId: req.params.attemptId,
+        user: req.user
+      });
+      
       const errorMessage = error instanceof Error ? error.message : 'Server error';
       const errorDetails = error instanceof Error ? error.stack : 'No details available';
+      
       res.status(500).json({ 
         message: 'Server error', 
         error: errorMessage,
@@ -2192,6 +2696,287 @@ app.get('/api/applications', authenticateToken, async (req: any, res) => {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
         error: 'Health check failed'
+      });
+    }
+  });
+
+  // Skills endpoints
+  app.get('/api/skills', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+      
+      const skills = await storage.getCandidateSkills(candidate.id);
+      res.json(skills);
+    } catch (error) {
+      console.error('Error fetching skills:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.post('/api/skills', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+      
+      const validatedData = insertSkillSchema.parse(req.body);
+      const skill = await storage.createSkill({
+        ...validatedData,
+        candidateId: candidate.id
+      });
+      
+      res.status(201).json(skill);
+    } catch (error) {
+      console.error('Error creating skill:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.put('/api/skills/:id', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+      
+      const skillId = parseInt(req.params.id);
+      const validatedData = insertSkillSchema.partial().parse(req.body);
+      
+      const skill = await storage.updateSkill(skillId, {
+        ...validatedData,
+        candidateId: candidate.id
+      });
+      
+      if (!skill) {
+        return res.status(404).json({ message: 'Skill not found' });
+      }
+      
+      res.json(skill);
+    } catch (error) {
+      console.error('Error updating skill:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.delete('/api/skills/:id', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+      
+      const skillId = parseInt(req.params.id);
+      await storage.deleteSkill(skillId);
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting skill:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.post('/api/assessments/:attemptId/answers', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const attemptId = parseInt(req.params.attemptId);
+      const { questionId, answer } = req.body;
+      
+      // Validate the attempt belongs to the current user
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+      
+      const attempt = await storage.findAssessmentAttempt(attemptId);
+      if (!attempt || attempt.candidateId !== candidate.id) {
+        return res.status(404).json({ message: 'Assessment attempt not found' });
+      }
+      
+      // Save the answer
+      await storage.saveAssessmentAnswer(attemptId, questionId, answer);
+      
+      res.json({ message: 'Answer saved successfully' });
+    } catch (error) {
+      console.error('Error saving assessment answer:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // Debug endpoint for assessment troubleshooting
+  app.get('/api/debug/assessment/:attemptId', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    console.log(`🔍 [DEBUG ROUTE] Assessment debug request received`);
+    console.log(`📊 [DEBUG ROUTE] Request details:`, {
+      attemptId: req.params.attemptId,
+      user: req.user?.id
+    });
+    
+    try {
+      const attemptId = parseInt(req.params.attemptId);
+      console.log(`🔍 [DEBUG ROUTE] Parsed attempt ID: ${attemptId}`);
+      
+      if (isNaN(attemptId)) {
+        console.error(`❌ [DEBUG ROUTE] Invalid attempt ID: ${req.params.attemptId}`);
+        return res.status(400).json({ message: 'Invalid attempt ID' });
+      }
+      
+      console.log(`📞 [DEBUG ROUTE] Calling storage.debugAssessmentData with attemptId: ${attemptId}`);
+      const debugData = await storage.debugAssessmentData(attemptId);
+      
+      console.log(`✅ [DEBUG ROUTE] Debug data retrieved successfully`);
+      res.json(debugData);
+    } catch (error: unknown) {
+      console.error(`❌ [DEBUG ROUTE] Error getting debug data:`, error);
+      console.error(`❌ [DEBUG ROUTE] Error type:`, typeof error);
+      console.error(`❌ [DEBUG ROUTE] Error message:`, error instanceof Error ? error.message : 'Unknown error');
+      console.error(`❌ [DEBUG ROUTE] Error stack:`, error instanceof Error ? error.stack : 'No stack available');
+      
+      const errorMessage = error instanceof Error ? error.message : 'Server error';
+      const errorDetails = error instanceof Error ? error.stack : 'No details available';
+      
+      res.status(500).json({ 
+        message: 'Server error', 
+        error: errorMessage,
+        details: errorDetails
+      });
+    }
+  });
+
+  // Test endpoint to check candidates with resume text
+  app.get('/api/debug/job/:jobId/resume-status', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const applications = await storage.getApplicationsByJob(jobId);
+      const job = await storage.getJob(jobId);
+      
+      const debugData = [];
+      
+      for (const application of applications) {
+        const profile = await storage.getCandidateWithProfile(application.candidateId);
+        debugData.push({
+          applicationId: application.id,
+          candidateId: application.candidateId,
+          candidateName: profile ? `${profile.firstName} ${profile.lastName}` : 'Unknown',
+          hasResumeText: !!profile?.resumeText,
+          resumeTextLength: profile?.resumeText?.length || 0,
+          resumeTextPreview: profile?.resumeText?.substring(0, 100) || 'No resume text',
+          hasResumeUrl: !!profile?.resumeUrl,
+          resumeUrl: profile?.resumeUrl || 'No resume URL'
+        });
+      }
+      
+      res.json({
+        jobId,
+        jobTitle: job?.title || 'Unknown',
+        totalApplications: applications.length,
+        applicationsWithResumeText: debugData.filter(d => d.hasResumeText).length,
+        applicationsWithoutResumeText: debugData.filter(d => !d.hasResumeText).length,
+        debugData
+      });
+    } catch (error) {
+      console.error('Debug endpoint error:', error);
+      res.status(500).json({ message: 'Debug endpoint failed', error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Batch extract resume text for all candidates in a job
+  app.post('/api/jobs/:jobId/extract-resume-text', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const jobId = parseInt(req.params.jobId);
+      const applications = await storage.getApplicationsByJob(jobId);
+      
+      let processed = 0;
+      let extracted = 0;
+      let failed = 0;
+      
+      for (const application of applications) {
+        const profile = await storage.getCandidateWithProfile(application.candidateId);
+        
+        if (!profile || !profile.resumeUrl) {
+          failed++;
+          continue;
+        }
+        
+        if (profile.resumeText) {
+          processed++;
+          continue; // Already has resume text
+        }
+        
+        try {
+          // Extract resume text using the existing Python script
+          const { spawn } = await import('child_process');
+          const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', ['server/resume_parser/extract_resume_text.py'], {
+            env: { ...process.env }
+          });
+          
+          let output = '';
+          let errorOutput = '';
+          
+          py.stdout.on('data', (data: any) => { output += data.toString(); });
+          py.stderr.on('data', (data: any) => { errorOutput += data.toString(); });
+          
+          const input = {
+            resume_url: profile.resumeUrl
+          };
+          
+          py.stdin.write(JSON.stringify(input));
+          py.stdin.end();
+          
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              py.kill();
+              reject(new Error('Resume extraction timed out'));
+            }, 30000);
+            
+            py.on('close', (code) => {
+              clearTimeout(timeout);
+              if (code !== 0) {
+                reject(new Error(`Resume extraction failed with code ${code}`));
+              } else {
+                resolve(null);
+              }
+            });
+          });
+          
+          let resumeText = '';
+          try {
+            const result = JSON.parse(output);
+            resumeText = result.resume_text || '';
+          } catch (e) {
+            resumeText = output.trim();
+          }
+          
+          if (resumeText && resumeText.length > 0) {
+            await storage.updateCandidate(profile.id, { resumeText });
+            extracted++;
+          } else {
+            failed++;
+          }
+          
+        } catch (error) {
+          console.error(`Failed to extract resume text for candidate ${profile.id}:`, error);
+          failed++;
+        }
+        
+        processed++;
+      }
+      
+      res.json({
+        summary: {
+          total: applications.length,
+          processed,
+          extracted,
+          failed
+        }
+      });
+      
+    } catch (error) {
+      console.error('Batch resume extraction error:', error);
+      res.status(500).json({ 
+        message: 'Failed to batch extract resume text', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
       });
     }
   });

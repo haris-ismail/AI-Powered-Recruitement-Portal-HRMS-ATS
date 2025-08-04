@@ -8,8 +8,9 @@ export const fetcher = async (endpoint: string, options: RequestInit = {}) => {
     ...(token && { Authorization: `Bearer ${token}` }),
   };
 
-  const response = await fetch(`http://localhost:5000/api${endpoint}`, {
+  const response = await fetch(`/api${endpoint}`, {
     ...options,
+    credentials: 'include', // Include cookies for session-based auth
     headers: {
       ...headers,
       ...options.headers,
@@ -17,7 +18,8 @@ export const fetcher = async (endpoint: string, options: RequestInit = {}) => {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
   }
 
   return response.json();

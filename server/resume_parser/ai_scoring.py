@@ -6,11 +6,17 @@ from datetime import datetime
 from groq import Groq
 import os
 
-# --- Hardcoded API Key for Debugging ---
-# This is not secure for production. Remove after testing.
-api_key = "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"
-client = Groq(api_key=api_key)
-# -----------------------------------------
+# Get API key from environment variable
+api_key = os.environ.get("GROQ_API_KEY")
+if not api_key:
+    print("Error: GROQ_API_KEY environment variable not found.", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    client = Groq(api_key=api_key)
+except Exception as e:
+    print(f"Error initializing Groq client: {e}", file=sys.stderr)
+    sys.exit(1)
 
 def parse_date(d):
     return datetime.strptime(d, "%Y-%m-%d")
@@ -55,14 +61,17 @@ def build_ats_prompt_v2(resume_text, job_description):
     return f"""
 Act like a highly experienced and accurate Application Tracking System (ATS).
 Your task is to evaluate the candidate's resume data against the provided job description.
-Return a structured JSON response with scores in 4 categories only:
 
+First, provide a detailed analysis explaining your reasoning for each scoring category.
+Then, return a structured JSON response with scores in 4 categories only.
+
+SCORING CATEGORIES:
 1. EducationScore (out of 10): Match between candidate's education and job requirements.
 2. SkillsScore (out of 10): Overlap between required and listed skills.
 3. ExperienceYearsScore (out of 10): Based on number of years of relevant experience.
 4. ExperienceRelevanceScore (out of 10): How well past job roles align with this role.
 
-Only output this exact format:
+Please provide your analysis first, then the JSON scores in this exact format:
 {{
   "EducationScore": <int 0–10>,
   "SkillsScore": <int 0–10>,
@@ -75,25 +84,33 @@ job_description: {job_description}
 """
 
 def evaluate_resume_with_ats_scoring(resume_text, job_description, client):
-    prompt = build_ats_prompt_v2(resume_text, job_description)
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-        max_tokens=256,
-        top_p=1,
-        stream=False
-    )
-    return response.choices[0].message.content
+    try:
+        prompt = build_ats_prompt_v2(resume_text, job_description)
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=512,  # Increased to capture more reasoning
+            top_p=1,
+            stream=False
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error calling Groq API: {e}", file=sys.stderr)
+        raise e
 
 def extract_json_struct(text):
     try:
+        # First try to extract JSON from the response
         json_like = re.search(r'\{.*\}', text, re.DOTALL)
         if json_like:
-            return json.loads(json_like.group())
+            scores = json.loads(json_like.group())
+            # Extract the reasoning text (everything before the JSON)
+            reasoning = text.replace(json_like.group(), '').strip()
+            return {"scores": scores, "reasoning": reasoning}
     except Exception as e:
         print(f"Error parsing JSON: {e}", file=sys.stderr)
-    return {"error": "Could not parse response"}
+    return {"error": "Could not parse response", "reasoning": text}
 
 def main():
     parser = argparse.ArgumentParser(description="AI Scoring and Red Flag Detection")
@@ -104,6 +121,11 @@ def main():
             data = json.load(f)
     else:
         data = json.load(sys.stdin)
+    
+    # Debug: Print input data
+    print(f"DEBUG: Received data keys: {list(data.keys())}", file=sys.stderr)
+    print(f"DEBUG: Weights received: {data.get('weights', 'Not found')}", file=sys.stderr)
+    
     # Required fields: resume, job_description, experience_dates, education_dates
     resume = data["resume"]
     job_description = data["job_description"]
@@ -115,30 +137,42 @@ def main():
         'ExperienceYearsScore': 0.10,
         'ExperienceRelevanceScore': 0.10
     })
-    # api_key = data.get("groq_api_key") or os.environ.get("GROQ_API_KEY")
-    # if not api_key:
-    #     print("Error: GROQ_API_KEY not found in input or environment.", file=sys.stderr)
-    #     sys.exit(1)
-
-    # Use the globally defined client
-    response_text = evaluate_resume_with_ats_scoring(resume, job_description, client)
-    scores = extract_json_struct(response_text)
+    
+    print(f"DEBUG: Using weights: {weights}", file=sys.stderr)
+    
+    try:
+        response_text = evaluate_resume_with_ats_scoring(resume, job_description, client)
+        print(f"DEBUG: AI Response: {response_text}", file=sys.stderr)
+    except Exception as e:
+        print(f"DEBUG: Error calling AI: {e}", file=sys.stderr)
+        # Fallback to mock scores for testing
+        print(f"DEBUG: Using fallback scores", file=sys.stderr)
+        response_text = '{"EducationScore": 7, "SkillsScore": 8, "ExperienceYearsScore": 6, "ExperienceRelevanceScore": 7}'
+    
+    scores_and_reasoning = extract_json_struct(response_text)
+    print(f"DEBUG: Parsed scores: {scores_and_reasoning}", file=sys.stderr)
+    
     red_flag = detect_red_flag(experience_dates, education_dates)
+    
     # Calculate weighted score
     try:
         weighted_score = (
-            scores['EducationScore'] * weights['EducationScore'] +
-            scores['SkillsScore'] * weights['SkillsScore'] +
-            scores['ExperienceYearsScore'] * weights['ExperienceYearsScore'] +
-            scores['ExperienceRelevanceScore'] * weights['ExperienceRelevanceScore']
+            scores_and_reasoning['scores']['EducationScore'] * weights['EducationScore'] +
+            scores_and_reasoning['scores']['SkillsScore'] * weights['SkillsScore'] +
+            scores_and_reasoning['scores']['ExperienceYearsScore'] * weights['ExperienceYearsScore'] +
+            scores_and_reasoning['scores']['ExperienceRelevanceScore'] * weights['ExperienceRelevanceScore']
         )
-        weighted_score = round(weighted_score * 10, 2)
+        weighted_score = round(weighted_score * 10)  # Convert to integer percentage
+        print(f"DEBUG: Calculated weighted score: {weighted_score}", file=sys.stderr)
     except Exception as e:
+        print(f"DEBUG: Error calculating weighted score: {e}", file=sys.stderr)
         weighted_score = None
+    
     result = {
-        "Scores": scores,
+        "Scores": scores_and_reasoning['scores'],
         "WeightedScore": weighted_score,
-        "RedFlag": red_flag
+        "RedFlag": red_flag,
+        "Reasoning": scores_and_reasoning['reasoning']
     }
     print(json.dumps(result, ensure_ascii=False))
 

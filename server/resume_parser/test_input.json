@@ -1,0 +1,12 @@
+{
+  "resume": "Software developer with 5 years experience in JavaScript, Python, and React. Bachelor's degree in Computer Science from University of Technology.",
+  "job_description": "Senior Software Developer position requiring 3+ years of experience in JavaScript and React. Bachelor's degree preferred.",
+  "experience_dates": [["2020-01-01", "2023-12-31"]],
+  "education_dates": [["2016-09-01", "2020-05-31"]],
+  "weights": {
+    "EducationScore": 0.3,
+    "SkillsScore": 0.4,
+    "ExperienceYearsScore": 0.2,
+    "ExperienceRelevanceScore": 0.1
+  }
+} 

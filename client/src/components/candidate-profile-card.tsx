@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
 
 interface CandidateProfileCardProps {
   candidate: {
@@ -43,7 +44,13 @@ interface CandidateProfileCardProps {
     status: string;
     appliedAt: string;
     ai_score?: number;
-    ai_score_breakdown?: { [key: string]: number };
+    ai_score_breakdown?: { 
+      EducationScore?: number;
+      SkillsScore?: number;
+      ExperienceYearsScore?: number;
+      ExperienceRelevanceScore?: number;
+      reasoning?: string;
+    };
     red_flags?: string[];
   };
   onStatusChange?: (applicationId: number, newStatus: string) => void;
@@ -72,30 +79,8 @@ export default function CandidateProfileCard({
   onSendEmail 
 }: CandidateProfileCardProps) {
   const { user } = useAuthMigration();
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "applied": return "bg-blue-100 text-blue-800";
-      case "shortlisted": return "bg-yellow-100 text-yellow-800";
-      case "interview": return "bg-green-100 text-green-800";
-      case "hired": return "bg-purple-100 text-purple-800";
-      case "onboarded": return "bg-indigo-100 text-indigo-800";
-      case "rejected": return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getNextStatus = (currentStatus: string) => {
-    switch (currentStatus) {
-      case "applied": return "shortlisted";
-      case "shortlisted": return "interview";
-      case "interview": return "hired";
-      case "hired": return "onboarded";
-      default: return null;
-    }
-  };
-
-  const nextStatus = getNextStatus(application.status);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const { toast } = useToast();
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [location, navigate] = useLocation();
 
   // Admin Notes State
@@ -109,18 +94,23 @@ export default function CandidateProfileCard({
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewRating, setReviewRating] = useState([3]);
   const [reviewFeedback, setReviewFeedback] = useState("");
+  const [reviewStage, setReviewStage] = useState("");
+  const [isAddingReview, setIsAddingReview] = useState(false);
   const [editingReview, setEditingReview] = useState<CandidateReview | null>(null);
-  const [reviewStage, setReviewStage] = useState(application.status);
-
-  // Admin: Regenerate AI score state
+  const [reviewForm, setReviewForm] = useState({
+    stage: '',
+    rating: 5,
+    feedback: ''
+  });
+  const [regenLoading, setRegenLoading] = useState(false);
+  const [regenError, setRegenError] = useState("");
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [customWeights, setCustomWeights] = useState({
     EducationScore: 0.5,
     SkillsScore: 0.3,
     ExperienceYearsScore: 0.1,
     ExperienceRelevanceScore: 0.1,
   });
-  const [regenLoading, setRegenLoading] = useState(false);
-  const [regenError, setRegenError] = useState("");
   const [regenResult, setRegenResult] = useState<any>(null);
 
   // Fetch notes (admin only)
@@ -298,6 +288,30 @@ export default function CandidateProfileCard({
     return colors[stage] || "bg-gray-100 text-gray-800";
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "applied": return "bg-blue-100 text-blue-800";
+      case "shortlisted": return "bg-yellow-100 text-yellow-800";
+      case "interview": return "bg-green-100 text-green-800";
+      case "hired": return "bg-purple-100 text-purple-800";
+      case "onboarded": return "bg-indigo-100 text-indigo-800";
+      case "rejected": return "bg-red-100 text-red-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getNextStatus = (currentStatus: string) => {
+    switch (currentStatus) {
+      case "applied": return "shortlisted";
+      case "shortlisted": return "interview";
+      case "interview": return "hired";
+      case "hired": return "onboarded";
+      default: return null;
+    }
+  };
+
+  const nextStatus = getNextStatus(application.status);
+
   // Add error boundary
   if (!candidate || !application) {
     console.error("Missing required props:", { candidate, application });
@@ -383,6 +397,150 @@ export default function CandidateProfileCard({
             </div>
           )}
         </div>
+
+        {/* AI Score Breakdown Section */}
+        {application.ai_score_breakdown && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-blue-900 flex items-center">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                AI Score Breakdown
+              </h4>
+              <div className="flex items-center space-x-2">
+                {typeof application.ai_score === 'number' && (
+                  <div className="text-sm font-bold text-blue-700">
+                    Total: {application.ai_score}%
+                  </div>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowBreakdown(!showBreakdown)}
+                  className="h-6 w-6 p-0"
+                >
+                  <svg 
+                    className={`w-4 h-4 transition-transform ${showBreakdown ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </Button>
+              </div>
+            </div>
+            
+            {showBreakdown && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between p-2 bg-white rounded border">
+                    <span className="text-sm font-medium text-gray-700">Education</span>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-16 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-green-500 h-2 rounded-full" 
+                          style={{ width: `${(application.ai_score_breakdown.EducationScore || 0) * 10}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-bold text-gray-900">{application.ai_score_breakdown.EducationScore || 0}/10</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-2 bg-white rounded border">
+                    <span className="text-sm font-medium text-gray-700">Skills</span>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-16 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-500 h-2 rounded-full" 
+                          style={{ width: `${(application.ai_score_breakdown.SkillsScore || 0) * 10}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-bold text-gray-900">{application.ai_score_breakdown.SkillsScore || 0}/10</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-2 bg-white rounded border">
+                    <span className="text-sm font-medium text-gray-700">Experience Years</span>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-16 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-yellow-500 h-2 rounded-full" 
+                          style={{ width: `${(application.ai_score_breakdown.ExperienceYearsScore || 0) * 10}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-bold text-gray-900">{application.ai_score_breakdown.ExperienceYearsScore || 0}/10</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-2 bg-white rounded border">
+                    <span className="text-sm font-medium text-gray-700">Experience Relevance</span>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-16 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-purple-500 h-2 rounded-full" 
+                          style={{ width: `${(application.ai_score_breakdown.ExperienceRelevanceScore || 0) * 10}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-bold text-gray-900">{application.ai_score_breakdown.ExperienceRelevanceScore || 0}/10</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* AI Reasoning Section */}
+                {application.ai_score_breakdown?.reasoning && (
+                  <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      <span className="text-sm font-medium text-gray-800">AI Reasoning</span>
+                    </div>
+                    <div className="text-sm text-gray-700 leading-relaxed max-h-32 overflow-y-auto">
+                      {application.ai_score_breakdown.reasoning.split('\n').map((line, index) => (
+                        <p key={index} className="mb-1">
+                          {line.trim()}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+
+                
+                {/* Red Flags Section */}
+                {application.red_flags && (
+                  Array.isArray(application.red_flags) ? (
+                    application.red_flags.length > 0 && application.red_flags[0] !== "None" && (
+                      <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded">
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-sm font-medium text-red-800">Red Flags</span>
+                        </div>
+                        <p className="text-sm text-red-700 mt-1">{application.red_flags.join(", ")}</p>
+                      </div>
+                    )
+                  ) : (
+                    application.red_flags !== "None" && (
+                      <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded">
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-sm font-medium text-red-800">Red Flags</span>
+                        </div>
+                        <p className="text-sm text-red-700 mt-1">{application.red_flags}</p>
+                      </div>
+                    )
+                  )
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Reviews Section */}
         {user?.role === 'admin' && (
@@ -608,7 +766,10 @@ export default function CandidateProfileCard({
             {nextStatus && (
               <Button
                 size="sm"
-                onClick={() => onStatusChange?.(application.id, nextStatus)}
+                onClick={() => {
+                  console.log("Status change button clicked:", { applicationId: application.id, currentStatus: application.status, nextStatus });
+                  onStatusChange?.(application.id, nextStatus);
+                }}
                 className="bg-green-600 hover:bg-green-700"
               >
                 Move to {nextStatus}

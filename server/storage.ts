@@ -12,7 +12,7 @@ import {
   offers, jobCosts, type InsertOffer, type Offer, type InsertJobCost, type JobCost
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, like, ilike, or, sql, count } from "drizzle-orm";
+import { eq, and, desc, like, ilike, or, sql, count, isNull } from "drizzle-orm";
 
 // Only method signatures in IStorage
 export interface IStorage {
@@ -64,6 +64,7 @@ export interface IStorage {
   createSkill(skill: InsertSkill): Promise<Skill>;
   updateSkill(id: number, skill: Partial<InsertSkill>): Promise<Skill>;
   deleteSkill(id: number): Promise<void>;
+  saveAssessmentAnswer(attemptId: number, questionId: number, answer: any): Promise<void>;
   getAssessmentCategories(): Promise<any[]>;
   createAssessmentCategory(data: any): Promise<any>;
   getAssessmentTemplates(): Promise<any[]>;
@@ -264,7 +265,12 @@ export class DatabaseStorage implements IStorage {
     if (!candidate) return null;
     const educationList = await db.select().from(education).where(eq(education.candidateId, candidateId));
     const experienceList = await db.select().from(experience).where(eq(experience.candidateId, candidateId));
-    return { ...candidate, education: educationList, experience: experienceList };
+    return { 
+      ...candidate, 
+      education: educationList, 
+      experience: experienceList,
+      resumeText: candidate.resumeText // Ensure resumeText is included
+    };
   }
 
   async getCandidateNotes(candidateId: number): Promise<CandidateNote[]> {
@@ -331,6 +337,41 @@ export class DatabaseStorage implements IStorage {
     await db.delete(skills).where(eq(skills.id, id));
   }
 
+  async saveAssessmentAnswer(attemptId: number, questionId: number, answer: any): Promise<void> {
+    try {
+      // Check if answer already exists
+      const existingAnswer = await db.select()
+        .from(assessmentAnswers)
+        .where(and(
+          eq(assessmentAnswers.attemptId, attemptId),
+          eq(assessmentAnswers.questionId, questionId)
+        ))
+        .limit(1);
+      
+      if (existingAnswer.length > 0) {
+        // Update existing answer
+        await db.update(assessmentAnswers)
+          .set({ answerText: answer })
+          .where(and(
+            eq(assessmentAnswers.attemptId, attemptId),
+            eq(assessmentAnswers.questionId, questionId)
+          ));
+      } else {
+        // Insert new answer
+        await db.insert(assessmentAnswers).values({
+          attemptId: attemptId,
+          questionId: questionId,
+          answerText: answer,
+          isCorrect: false, // Will be calculated during submission
+          pointsEarned: 0 // Will be calculated during submission
+        });
+      }
+    } catch (error) {
+      console.error('Error saving assessment answer:', error);
+      throw error;
+    }
+  }
+
   async getAssessmentCategories(): Promise<any[]> {
     return await db.select().from(assessmentCategories);
   }
@@ -341,7 +382,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAssessmentTemplates(): Promise<any[]> {
-    return await db.select().from(assessmentTemplates);
+    try {
+      console.log('Fetching assessment templates...');
+      const templates = await db.select().from(assessmentTemplates).where(eq(assessmentTemplates.isActive, true));
+      console.log(`Found ${templates.length} active assessment templates:`, templates.map(t => ({ id: t.id, title: t.title, isActive: t.isActive })));
+      return templates;
+    } catch (error) {
+      console.error('Error fetching assessment templates:', error);
+      throw error;
+    }
   }
 
   async createAssessmentTemplate(data: any): Promise<any> {
@@ -350,12 +399,80 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateAssessmentTemplate(id: number, data: any): Promise<any> {
-    const [row] = await db.update(assessmentTemplates).set(data).where(eq(assessmentTemplates.id, id)).returning();
-    return row;
+    console.log(`🔍 [UPDATE TEMPLATE] Updating assessment template ID: ${id}`);
+    console.log(`📊 [UPDATE TEMPLATE] Update data:`, JSON.stringify(data, null, 2));
+    
+    try {
+      // Clean and validate the update data
+      const cleanData: any = {};
+      
+      // Only allow specific fields to be updated
+      const allowedFields = [
+        'title', 'description', 'categoryId', 'durationMinutes', 
+        'passingScore', 'isActive', 'createdBy'
+      ];
+      
+      for (const field of allowedFields) {
+        if (data[field] !== undefined) {
+          // Convert numeric fields
+          if (field === 'categoryId' || field === 'durationMinutes' || field === 'passingScore' || field === 'createdBy') {
+            const numValue = Number(data[field]);
+            if (!isNaN(numValue)) {
+              cleanData[field] = numValue;
+            } else {
+              console.warn(`⚠️ [UPDATE TEMPLATE] Invalid numeric value for ${field}: ${data[field]}`);
+            }
+          }
+          // Convert boolean fields
+          else if (field === 'isActive') {
+            cleanData[field] = Boolean(data[field]);
+          }
+          // String fields
+          else {
+            cleanData[field] = String(data[field]);
+          }
+        }
+      }
+      
+      console.log(`🧹 [UPDATE TEMPLATE] Cleaned data:`, JSON.stringify(cleanData, null, 2));
+      
+      // Verify template exists before updating
+      const [existingTemplate] = await db.select().from(assessmentTemplates).where(eq(assessmentTemplates.id, id));
+      if (!existingTemplate) {
+        console.error(`❌ [UPDATE TEMPLATE] Template not found: ${id}`);
+        throw new Error(`Assessment template with ID ${id} not found`);
+      }
+      
+      console.log(`✅ [UPDATE TEMPLATE] Template found, proceeding with update`);
+      
+      // Perform the update
+      const [row] = await db.update(assessmentTemplates).set(cleanData).where(eq(assessmentTemplates.id, id)).returning();
+      
+      console.log(`✅ [UPDATE TEMPLATE] Template updated successfully:`, {
+        id: row.id,
+        title: row.title,
+        updatedAt: new Date().toISOString()
+      });
+      
+      return row;
+    } catch (error) {
+      console.error(`❌ [UPDATE TEMPLATE] Error updating template:`, error);
+      console.error(`❌ [UPDATE TEMPLATE] Error type:`, typeof error);
+      console.error(`❌ [UPDATE TEMPLATE] Error message:`, error instanceof Error ? error.message : 'Unknown error');
+      console.error(`❌ [UPDATE TEMPLATE] Error stack:`, error instanceof Error ? error.stack : 'No stack available');
+      throw error;
+    }
   }
 
   async deleteAssessmentTemplate(id: number): Promise<void> {
-    await db.delete(assessmentTemplates).where(eq(assessmentTemplates.id, id));
+    console.log(`🗑️ [DELETE TEMPLATE] Deleting assessment template ID: ${id}`);
+    try {
+      await db.delete(assessmentTemplates).where(eq(assessmentTemplates.id, id));
+      console.log(`✅ [DELETE TEMPLATE] Template deleted successfully`);
+    } catch (error) {
+      console.error(`❌ [DELETE TEMPLATE] Error deleting template:`, error);
+      throw error;
+    }
   }
 
   async getAssessmentTemplate(templateId: number): Promise<any> {
@@ -414,14 +531,20 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async findAssessmentAttempt(candidateId: number, templateId: number, jobId: number): Promise<any> {
+  async findAssessmentAttempt(candidateId: number, templateId: number, jobId?: number): Promise<any> {
     try {
       const conditions = [
         eq(assessmentAttempts.candidateId, candidateId),
         eq(assessmentAttempts.templateId, templateId),
-        eq(assessmentAttempts.jobId, jobId),
         eq(assessmentAttempts.status, 'in_progress')
       ];
+
+      // Add jobId condition only if it's provided
+      if (jobId !== undefined) {
+        conditions.push(eq(assessmentAttempts.jobId, jobId));
+      } else {
+        conditions.push(isNull(assessmentAttempts.jobId));
+      }
 
       const [attempt] = await db
         .select()
@@ -568,39 +691,237 @@ export class DatabaseStorage implements IStorage {
   }
 
   async submitAssessment(attemptId: number, data: any): Promise<any> {
-    // Fetch attempt, template, and questions
-    const [attempt] = await db.select().from(assessmentAttempts).where(eq(assessmentAttempts.id, attemptId));
-    if (!attempt) throw new Error("Attempt not found");
-    // Enforce time limit
-    const [template] = await db.select().from(assessmentTemplates).where(eq(assessmentTemplates.id, attempt.templateId));
-    if (!template) throw new Error("Template not found");
-    const now = new Date();
-    const started = attempt.startedAt;
-    const durationMs = (template.durationMinutes || 0) * 60 * 1000;
-    if (started && durationMs && now.getTime() > new Date(started).getTime() + durationMs) {
-      // Expired
-      await db.update(assessmentAttempts).set({ status: "expired", completedAt: now }).where(eq(assessmentAttempts.id, attemptId));
-      return { status: "expired" };
-    }
-    // Secure scoring logic
-    const questions = await db.select().from(assessmentQuestions).where(eq(assessmentQuestions.templateId, attempt.templateId));
-    let score = 0;
-    let maxScore = 0;
-    for (const q of questions) {
-      maxScore += q.points;
-      const answer = data.answers?.[q.id];
-      // Only check server-side
-      if (q.questionType === "mcq_single" || q.questionType === "true_false") {
-        if (answer && JSON.stringify(answer) === JSON.stringify(q.correctAnswers)) score += q.points;
-      } else if (q.questionType === "mcq_multiple") {
-        if (answer && Array.isArray(answer) && Array.isArray(q.correctAnswers) && JSON.stringify([...answer].sort()) === JSON.stringify([...(q.correctAnswers || [])].sort())) score += q.points;
-      } else if (q.questionType === "short_answer") {
-        // Optionally implement short answer checking
+    console.log(`🚀 [ASSESSMENT SUBMISSION START] Attempt ID: ${attemptId}`);
+    console.log(`📊 [INPUT DATA] Data received:`, JSON.stringify(data, null, 2));
+    
+    return await db.transaction(async (tx) => {
+      try {
+        console.log(`🔍 [FETCHING ATTEMPT] Looking for attempt ${attemptId}`);
+        // Fetch attempt, template, and questions
+        const [attempt] = await tx.select().from(assessmentAttempts).where(eq(assessmentAttempts.id, attemptId));
+        if (!attempt) {
+          console.error(`❌ [ERROR] Attempt not found for ID: ${attemptId}`);
+          throw new Error("Attempt not found");
+        }
+        console.log(`✅ [ATTEMPT FOUND] Attempt details:`, {
+          id: attempt.id,
+          candidateId: attempt.candidateId,
+          templateId: attempt.templateId,
+          jobId: attempt.jobId,
+          status: attempt.status,
+          startedAt: attempt.startedAt
+        });
+        
+        console.log(`🔍 [FETCHING TEMPLATE] Looking for template ${attempt.templateId}`);
+        const [template] = await tx.select().from(assessmentTemplates).where(eq(assessmentTemplates.id, attempt.templateId));
+        if (!template) {
+          console.error(`❌ [ERROR] Template not found for ID: ${attempt.templateId}`);
+          throw new Error("Template not found");
+        }
+        console.log(`✅ [TEMPLATE FOUND] Template details:`, {
+          id: template.id,
+          title: template.title,
+          durationMinutes: template.durationMinutes,
+          passingScore: template.passingScore
+        });
+        
+        // Enforce time limit
+        const now = new Date();
+        const started = attempt.startedAt;
+        const durationMs = (template.durationMinutes || 0) * 60 * 1000;
+        console.log(`⏰ [TIME CHECK] Current time: ${now.toISOString()}, Started: ${started?.toISOString()}, Duration: ${durationMs}ms`);
+        
+        if (started && durationMs && now.getTime() > new Date(started).getTime() + durationMs) {
+          console.log(`⏰ [TIME EXPIRED] Assessment has expired`);
+          // Expired
+          await tx.update(assessmentAttempts).set({ status: "expired", completedAt: now }).where(eq(assessmentAttempts.id, attemptId));
+          return { status: "expired" };
+        }
+        
+        // Get questions for scoring
+        console.log(`🔍 [FETCHING QUESTIONS] Getting questions for template ${attempt.templateId}`);
+        const questions = await tx.select().from(assessmentQuestions).where(eq(assessmentQuestions.templateId, attempt.templateId));
+        console.log(`✅ [QUESTIONS FOUND] Found ${questions.length} questions`);
+        
+        let score = 0;
+        let maxScore = 0;
+        
+        // Store answers and calculate score
+        const answersToInsert = [];
+        
+        console.log(`📝 [SCORING PROCESS] Starting to score ${questions.length} questions`);
+        
+        for (const question of questions) {
+          maxScore += question.points;
+          const answer = data.answers?.[question.id];
+          let isCorrect = false;
+          let pointsEarned = 0;
+          
+          console.log(`\n🔍 [QUESTION ${question.id}] Scoring question: "${question.questionText}"`);
+          console.log(`   📋 Question Type: ${question.questionType}`);
+          console.log(`   📊 Points Available: ${question.points}`);
+          console.log(`   💭 User Answer: ${JSON.stringify(answer)} (type: ${typeof answer})`);
+          console.log(`   ✅ Correct Answers: ${JSON.stringify(question.correctAnswers)} (type: ${typeof question.correctAnswers})`);
+          console.log(`   📦 Options: ${JSON.stringify(question.options)}`);
+          
+          // Score the answer
+          if (answer !== undefined && answer !== null && answer !== "") {
+            console.log(`   🎯 Processing answer...`);
+            
+            if (question.questionType === "mcq_single" || question.questionType === "true_false") {
+              console.log(`   📝 [MCQ SINGLE/TRUE_FALSE] Processing single choice question`);
+              
+              // Normalize data types for comparison
+              let userAnswerForComparison = answer;
+              let correctAnswerForComparison = question.correctAnswers;
+              
+              console.log(`   🔄 [TYPE NORMALIZATION] Original user answer: ${userAnswerForComparison} (${typeof userAnswerForComparison})`);
+              console.log(`   🔄 [TYPE NORMALIZATION] Original correct answer: ${correctAnswerForComparison} (${typeof correctAnswerForComparison})`);
+              
+              // Handle type mismatches
+              if (Array.isArray(question.correctAnswers) && question.correctAnswers.length > 0) {
+                correctAnswerForComparison = question.correctAnswers[0];
+                console.log(`   🔄 [ARRAY HANDLING] Extracted first correct answer: ${correctAnswerForComparison}`);
+              }
+              
+              // Convert both to strings for comparison
+              userAnswerForComparison = String(userAnswerForComparison).trim().toLowerCase();
+              correctAnswerForComparison = String(correctAnswerForComparison).trim().toLowerCase();
+              
+              console.log(`   🔄 [NORMALIZATION] Normalized user answer: "${userAnswerForComparison}"`);
+              console.log(`   🔄 [NORMALIZATION] Normalized correct answer: "${correctAnswerForComparison}"`);
+              
+              isCorrect = userAnswerForComparison === correctAnswerForComparison;
+              console.log(`   ✅ [COMPARISON] Result: ${isCorrect} (${userAnswerForComparison} === ${correctAnswerForComparison})`);
+              
+            } else if (question.questionType === "mcq_multiple") {
+              console.log(`   📝 [MCQ MULTIPLE] Processing multiple choice question`);
+              
+              if (Array.isArray(answer) && Array.isArray(question.correctAnswers)) {
+                console.log(`   🔄 [ARRAY PROCESSING] Both answers are arrays`);
+                
+                // Normalize arrays for comparison
+                const userAnswers = answer.map(a => String(a).trim().toLowerCase()).sort();
+                const correctAnswers = question.correctAnswers.map(a => String(a).trim().toLowerCase()).sort();
+                
+                console.log(`   🔄 [NORMALIZATION] Normalized user answers: [${userAnswers.join(', ')}]`);
+                console.log(`   🔄 [NORMALIZATION] Normalized correct answers: [${correctAnswers.join(', ')}]`);
+                console.log(`   📊 [ARRAY COMPARISON] User array length: ${userAnswers.length}, Correct array length: ${correctAnswers.length}`);
+                
+                // Check if arrays have same length and same elements
+                const lengthMatch = userAnswers.length === correctAnswers.length;
+                const contentMatch = userAnswers.every((val, index) => val === correctAnswers[index]);
+                
+                console.log(`   📊 [ARRAY COMPARISON] Length match: ${lengthMatch}, Content match: ${contentMatch}`);
+                
+                isCorrect = lengthMatch && contentMatch;
+                console.log(`   ✅ [COMPARISON] Result: ${isCorrect}`);
+              } else {
+                console.log(`   ❌ [ERROR] Invalid data types for multiple choice`);
+                console.log(`   📊 User answer type: ${typeof answer}, Correct answer type: ${typeof question.correctAnswers}`);
+                isCorrect = false;
+              }
+              
+            } else if (question.questionType === "short_answer") {
+              console.log(`   📝 [SHORT ANSWER] Processing short answer question`);
+              // For short answers, mark as pending review
+              isCorrect = null; // null indicates pending review
+              pointsEarned = 0;
+              console.log(`   ⏳ [PENDING REVIEW] Marked for admin review`);
+            } else {
+              console.log(`   ❌ [ERROR] Unknown question type: ${question.questionType}`);
+              isCorrect = false;
+            }
+            
+            if (isCorrect === true) {
+              pointsEarned = question.points;
+              score += question.points;
+              console.log(`   ✅ [CORRECT] Points earned: ${pointsEarned}, Running total: ${score}`);
+            } else if (isCorrect === false) {
+              console.log(`   ❌ [INCORRECT] Points earned: 0`);
+            } else {
+              console.log(`   ⏳ [PENDING REVIEW] Short answer - no points yet`);
+            }
+          } else {
+            console.log(`   ⚠️ [NO ANSWER] No answer provided for this question`);
+          }
+          
+          console.log(`   📊 [FINAL] Question ${question.id} - isCorrect: ${isCorrect}, pointsEarned: ${pointsEarned}`);
+          
+          // Prepare answer for insertion
+          const answerRecord = {
+            attemptId: attemptId,
+            questionId: question.id,
+            answerText: answer,
+            isCorrect: isCorrect,
+            pointsEarned: pointsEarned
+          };
+          
+          answersToInsert.push(answerRecord);
+          console.log(`   💾 [ANSWER RECORD] Prepared for insertion:`, answerRecord);
+        }
+        
+        console.log(`\n📊 [SCORING SUMMARY] Final calculations:`);
+        console.log(`   📈 Total Score: ${score}`);
+        console.log(`   📈 Max Possible Score: ${maxScore}`);
+        console.log(`   📈 Score Percentage: ${maxScore > 0 ? ((score / maxScore) * 100).toFixed(2) : 0}%`);
+        console.log(`   🎯 Passing Score: ${template.passingScore}`);
+        console.log(`   ✅ Passed: ${score >= template.passingScore}`);
+        
+        // Insert all answers
+        if (answersToInsert.length > 0) {
+          try {
+            console.log(`💾 [INSERTING ANSWERS] Inserting ${answersToInsert.length} answer records`);
+            await tx.insert(assessmentAnswers).values(answersToInsert);
+            console.log(`✅ [ANSWERS INSERTED] Successfully inserted all answer records`);
+          } catch (error) {
+            console.error('❌ [ERROR] Error inserting answers:', error);
+            console.error('❌ [ERROR] Answer records that failed:', JSON.stringify(answersToInsert, null, 2));
+            throw error;
+          }
+        } else {
+          console.log(`⚠️ [WARNING] No answer records to insert`);
+        }
+        
+        // Update attempt with final results
+        const passed = score >= template.passingScore;
+        console.log(`\n📝 [UPDATING ATTEMPT] Updating attempt ${attemptId} with final results`);
+        console.log(`   📊 Final Score: ${score}/${maxScore}`);
+        console.log(`   🎯 Passed: ${passed}`);
+        console.log(`   ⏰ Completion Time: ${now.toISOString()}`);
+        
+        await tx.update(assessmentAttempts)
+          .set({ 
+            status: "completed", 
+            completedAt: now, 
+            score, 
+            maxScore, 
+            passed 
+          })
+          .where(eq(assessmentAttempts.id, attemptId));
+        
+        console.log(`✅ [ATTEMPT UPDATED] Successfully updated attempt status`);
+        
+        const result = { 
+          status: "completed", 
+          score, 
+          maxScore, 
+          passed,
+          attemptId 
+        };
+        
+        console.log(`🎉 [SUBMISSION COMPLETE] Final result:`, result);
+        console.log(`🏁 [ASSESSMENT SUBMISSION END] Attempt ID: ${attemptId}`);
+        
+        return result;
+      } catch (error) {
+        console.error('❌ [ERROR] Error submitting assessment:', error);
+        console.error('❌ [ERROR] Error stack:', error.stack);
+        console.error('❌ [ERROR] Attempt ID:', attemptId);
+        console.error('❌ [ERROR] Input data:', JSON.stringify(data, null, 2));
+        throw error;
       }
-    }
-    // Mark as completed
-    await db.update(assessmentAttempts).set({ status: "completed", completedAt: now, score, maxScore, passed: score >= template.passingScore }).where(eq(assessmentAttempts.id, attemptId));
-    return { status: "completed", score, maxScore, passed: score >= template.passingScore };
+    });
   }
 
   async getAssessmentResults(attemptId: number): Promise<any> {
@@ -719,7 +1040,7 @@ export class DatabaseStorage implements IStorage {
     // Implement this method as needed for your logic
     return [];
   }
-export class DatabaseStorage {
+
   async searchResumes(query: string, filters: SearchFilters, page: number, limit: number): Promise<SearchResult> {
     let whereConditions = [];
     let joinExperience = false;
@@ -821,8 +1142,7 @@ export class DatabaseStorage {
       .select()
       .from(searchQueries)
       .where(eq(searchQueries.createdBy, userId))
-      .orderBy(desc(searchQueries.createdAt))
-      .limit(10);
+      .orderBy(desc(searchQueries.createdAt));
   }
 
   async getApplication(id: number): Promise<Application | undefined> {
@@ -916,6 +1236,90 @@ export class DatabaseStorage {
   async getJobById(id: number): Promise<Job | null> {
     const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
     return job || null;
+  }
+
+  // Debugging utility for assessment data validation
+  async debugAssessmentData(attemptId: number): Promise<any> {
+    console.log(`🔍 [DEBUG] Starting assessment data validation for attempt ${attemptId}`);
+    
+    try {
+      // Get attempt data
+      const [attempt] = await db.select().from(assessmentAttempts).where(eq(assessmentAttempts.id, attemptId));
+      if (!attempt) {
+        console.error(`❌ [DEBUG] Attempt not found: ${attemptId}`);
+        return { error: 'Attempt not found' };
+      }
+      
+      console.log(`✅ [DEBUG] Attempt found:`, {
+        id: attempt.id,
+        candidateId: attempt.candidateId,
+        templateId: attempt.templateId,
+        status: attempt.status,
+        score: attempt.score,
+        maxScore: attempt.maxScore,
+        passed: attempt.passed
+      });
+      
+      // Get template data
+      const [template] = await db.select().from(assessmentTemplates).where(eq(assessmentTemplates.id, attempt.templateId));
+      if (!template) {
+        console.error(`❌ [DEBUG] Template not found: ${attempt.templateId}`);
+        return { error: 'Template not found' };
+      }
+      
+      console.log(`✅ [DEBUG] Template found:`, {
+        id: template.id,
+        title: template.title,
+        durationMinutes: template.durationMinutes,
+        passingScore: template.passingScore
+      });
+      
+      // Get questions
+      const questions = await db.select().from(assessmentQuestions).where(eq(assessmentQuestions.templateId, attempt.templateId));
+      console.log(`✅ [DEBUG] Questions found: ${questions.length}`);
+      
+      // Get answers
+      const answers = await db.select().from(assessmentAnswers).where(eq(assessmentAnswers.attemptId, attemptId));
+      console.log(`✅ [DEBUG] Answers found: ${answers.length}`);
+      
+      // Validate data consistency
+      const validation = {
+        attemptId,
+        templateId: attempt.templateId,
+        questionsCount: questions.length,
+        answersCount: answers.length,
+        scoreConsistency: {
+          calculatedScore: answers.reduce((sum, a) => sum + (a.pointsEarned || 0), 0),
+          storedScore: attempt.score,
+          match: answers.reduce((sum, a) => sum + (a.pointsEarned || 0), 0) === attempt.score
+        },
+        maxScoreConsistency: {
+          calculatedMaxScore: questions.reduce((sum, q) => sum + q.points, 0),
+          storedMaxScore: attempt.maxScore,
+          match: questions.reduce((sum, q) => sum + q.points, 0) === attempt.maxScore
+        },
+        answerConsistency: questions.map(q => {
+          const answer = answers.find(a => a.questionId === q.id);
+          return {
+            questionId: q.id,
+            questionType: q.questionType,
+            hasAnswer: !!answer,
+            answerData: answer ? {
+              answerText: answer.answerText,
+              isCorrect: answer.isCorrect,
+              pointsEarned: answer.pointsEarned
+            } : null
+          };
+        })
+      };
+      
+      console.log(`📊 [DEBUG] Validation results:`, JSON.stringify(validation, null, 2));
+      
+      return validation;
+    } catch (error) {
+      console.error(`❌ [DEBUG] Error during validation:`, error);
+      return { error: error.message };
+    }
   }
 }
 

@@ -10,14 +10,19 @@ import AdminJobs from "@/pages/admin/jobs";
 import AdminPipeline from "@/pages/admin/pipeline";
 import AdminEmailTemplates from "@/pages/admin/email-templates";
 import AssessmentTemplatesPage from "@/pages/admin/assessment-templates";
+import AssessmentAnalyticsPage from "@/pages/admin/assessment-analytics";
+import AssessmentCategoriesPage from "@/pages/admin/assessment-categories";
 import EmailComposePage from "./pages/admin/email-compose";
 import CandidateProfile from "@/pages/candidate/profile";
 import CandidateJobs from "@/pages/candidate/jobs";
 import CandidateApplications from "@/pages/candidate/applications";
+import CandidateAssessments from "@/pages/candidate/assessments";
 import TakeAssessment from "@/pages/candidate/take-assessment";
+import AssessmentResults from "@/pages/candidate/assessment-results";
 import AuthGuard from "@/components/auth-guard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ResumeSearchPage from "@/pages/admin/resume-search";
+import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 function Router() {
   return (
@@ -45,6 +50,16 @@ function Router() {
           <AssessmentTemplatesPage />
         </AuthGuard>
       </Route>
+      <Route path="/admin/assessment-analytics">
+        <AuthGuard requiredRole="admin">
+          <AssessmentAnalyticsPage />
+        </AuthGuard>
+      </Route>
+      <Route path="/admin/assessment-categories">
+        <AuthGuard requiredRole="admin">
+          <AssessmentCategoriesPage />
+        </AuthGuard>
+      </Route>
       <Route path="/admin/email/compose">
         <AuthGuard requiredRole="admin">
           <EmailComposePage />
@@ -60,6 +75,8 @@ function Router() {
           <AdminDashboard />
         </AuthGuard>
       </Route>
+
+      {/* Assessment Routes */}
       <Route path="/assessment/:templateId">
         {(params: any) => {
           console.log('Route params:', params);
@@ -69,6 +86,11 @@ function Router() {
             </AuthGuard>
           );
         }}
+      </Route>
+      <Route path="/assessment-results">
+        <AuthGuard requiredRole="candidate">
+          <AssessmentResults />
+        </AuthGuard>
       </Route>
 
       {/* Candidate Routes */}
@@ -90,6 +112,11 @@ function Router() {
       <Route path="/candidate/applications">
         <AuthGuard requiredRole="candidate">
           <CandidateApplications />
+        </AuthGuard>
+      </Route>
+      <Route path="/candidate/assessments">
+        <AuthGuard requiredRole="candidate">
+          <CandidateAssessments />
         </AuthGuard>
       </Route>
       <Route path="/candidate/take-assessment">
@@ -116,6 +143,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <ChatbotWidget />
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>

@@ -97,8 +97,22 @@ export default function AdminJobs() {
   });
 
   // Fetch assessment templates
-  const { data: assessmentTemplates } = useQuery<AssessmentTemplate[]>({
+  const { data: assessmentTemplates, isLoading: assessmentTemplatesLoading, error: assessmentTemplatesError } = useQuery<AssessmentTemplate[]>({
     queryKey: ["/api/assessment-templates"],
+    refetchOnWindowFocus: false,
+    retry: false,
+    onSuccess: (data) => {
+      console.log('Assessment templates loaded:', data);
+    },
+    onError: (error) => {
+      console.error('Error loading assessment templates:', error);
+    }
+  });
+
+  console.log('Assessment templates state:', {
+    data: assessmentTemplates,
+    loading: assessmentTemplatesLoading,
+    error: assessmentTemplatesError
   });
 
   const createJobMutation = useMutation({

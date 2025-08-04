@@ -43,8 +43,8 @@ const baseConfig = {
 const devConfig = {
   ...baseConfig,
   server: {
-    port: 5000,
-    strictPort: true,
+    port: 3002,
+    strictPort: false,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

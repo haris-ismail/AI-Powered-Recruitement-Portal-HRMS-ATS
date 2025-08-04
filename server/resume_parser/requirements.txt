@@ -1,1 +1,8 @@
-groq 
+groq
+pdfplumber
+python-docx
+PyPDF2
+pypdf
+pytesseract
+pdf2image
+Pillow 
