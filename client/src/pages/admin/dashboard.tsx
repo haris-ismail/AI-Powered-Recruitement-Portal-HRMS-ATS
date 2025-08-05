@@ -148,53 +148,37 @@ export default function AdminDashboard() {
         {/* Sidebar */}
         <aside className="w-64 bg-white shadow-sm min-h-screen border-r border-gray-200">
           <nav className="p-4 space-y-2">
-            <Link href="/admin">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary text-white">
-                <BarChart3 className="h-5 w-5" />
-                <span>Dashboard</span>
-              </a>
+            <Link href="/admin" className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary text-white">
+              <BarChart3 className="h-5 w-5" />
+              <span>Dashboard</span>
             </Link>
-            <Link href="/admin/jobs">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
-                <Briefcase className="h-5 w-5" />
-                <span>Job Management</span>
-              </a>
+            <Link href="/admin/jobs" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <Briefcase className="h-5 w-5" />
+              <span>Job Management</span>
             </Link>
-            <Link href="/admin/pipeline">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
-                <Users className="h-5 w-5" />
-                <span>Recruitment Pipeline</span>
-              </a>
+            <Link href="/admin/pipeline" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <Users className="h-5 w-5" />
+              <span>Recruitment Pipeline</span>
             </Link>
-            <Link href="/admin/resume-search">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
-                <FileText className="h-5 w-5" />
-                <span>Resume Search</span>
-              </a>
+            <Link href="/admin/resume-search" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <FileText className="h-5 w-5" />
+              <span>Resume Search</span>
             </Link>
-            <Link href="/admin/email-templates">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
-                <Calendar className="h-5 w-5" />
-                <span>Email Templates</span>
-              </a>
+            <Link href="/admin/email-templates" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <Calendar className="h-5 w-5" />
+              <span>Email Templates</span>
             </Link>
-            <Link href="/admin/assessment-templates">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
-                <FileText className="h-5 w-5" />
-                <span>Assessment Templates</span>
-              </a>
+            <Link href="/admin/assessment-templates" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <FileText className="h-5 w-5" />
+              <span>Assessment Templates</span>
             </Link>
-            <Link href="/admin/assessment-categories">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
-                <FileText className="h-5 w-5" />
-                <span>Assessment Categories</span>
-              </a>
+            <Link href="/admin/assessment-categories" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <FileText className="h-5 w-5" />
+              <span>Assessment Categories</span>
             </Link>
-            <Link href="/admin/assessment-analytics">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
-                <BarChart3 className="h-5 w-5" />
-                <span>Assessment Analytics</span>
-              </a>
+            <Link href="/admin/assessment-analytics" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <BarChart3 className="h-5 w-5" />
+              <span>Assessment Analytics</span>
             </Link>
           </nav>
         </aside>

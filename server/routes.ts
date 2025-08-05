@@ -14,6 +14,7 @@ import { applications, offers, jobCosts, users } from "@shared/schema";
 import crypto from "crypto";
 import { redisService } from "./redis";
 import { secretManager } from "./secrets";
+import { skillRequestSchema } from "@shared/schema";
 
 // Initialize secret manager
 const secrets = secretManager.initialize();
@@ -135,6 +136,11 @@ const requireRole = (role: string) => {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Helper function to get Python command
+  const getPythonCommand = () => {
+    return process.platform === 'win32' ? 'python' : 'python3';
+  };
+
   // Create uploads directory
   const fs = await import('fs');
   if (!fs.existsSync('uploads')) {
@@ -536,7 +542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Call Python script to extract resume text
       let resumeText = '';
       try {
-        const python = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', [
+        const python = spawn(getPythonCommand(), [
           './server/resume_parser/extract_resume_text.py',
           resumePath
         ], {
@@ -898,8 +904,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
           console.log('AI input:', aiInput);
           // When spawning the Python process for AI scoring, pass the environment explicitly
-          const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', ['server/resume_parser/ai_scoring.py'], {
-            env: { ...process.env }
+          const py = spawn(getPythonCommand(), ['server/resume_parser/ai_scoring.py'], {
+            env: { 
+              ...process.env,
+              GROQ_API_KEY: process.env.GROQ_API_KEY || ''
+            }
           });
           let output = '';
           let errorOutput = '';
@@ -980,8 +989,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       console.log('AI input (regenerate):', aiInput);
       const { spawn } = (await import('child_process'));
-      const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', ['./server/resume_parser/ai_scoring.py'], {
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+              const py = spawn(getPythonCommand(), ['./server/resume_parser/ai_scoring.py'], {
+        env: { 
+          ...process.env, 
+          PYTHONIOENCODING: 'utf-8',
+          GROQ_API_KEY: process.env.GROQ_API_KEY || ''
+        }
       });
       let output = '';
       let errorOutput = '';
@@ -1161,8 +1174,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('Python script path:', scriptPath);
         console.log('Script exists:', fs.existsSync(scriptPath));
         
-        const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', [scriptPath], {
-          env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        const py = spawn(getPythonCommand(), [scriptPath], {
+          env: { 
+            ...process.env, 
+            PYTHONIOENCODING: 'utf-8',
+            GROQ_API_KEY: process.env.GROQ_API_KEY || ''
+          }
         });
         
         py.stdout.on('data', (data: any) => { 
@@ -1189,9 +1206,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('Input sent to Python script');
         
         // Add timeout and better error handling
-        let processCompleted = false;
-        
-                  await new Promise((resolve, reject) => {
+        try {
+          await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
               console.log('Python process timed out');
               py.kill();
@@ -1213,6 +1229,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             });
           });
+        } catch (error) {
+          console.error('Python process error:', error);
+          console.log('Skipping this application due to Python process failure');
+          skipped++;
+          continue;
+        }
         
         let aiResult;
         try {
@@ -1416,8 +1438,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Test Python script path:', scriptPath);
       console.log('Test Script exists:', fs.existsSync(scriptPath));
       
-              const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', [scriptPath], {
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+              const py = spawn(getPythonCommand(), [scriptPath], {
+        env: { 
+          ...process.env, 
+          PYTHONIOENCODING: 'utf-8',
+          GROQ_API_KEY: process.env.GROQ_API_KEY || ''
+        }
       });
       
       py.stdout.on('data', (data: any) => { 
@@ -2722,17 +2748,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!candidate) {
         return res.status(404).json({ message: 'Candidate not found' });
       }
-      
-      const validatedData = insertSkillSchema.parse(req.body);
+      // Only validate name and expertiseLevel from the request body
+      const skillData = skillRequestSchema.parse(req.body);
       const skill = await storage.createSkill({
-        ...validatedData,
+        ...skillData,
         candidateId: candidate.id
       });
-      
       res.status(201).json(skill);
     } catch (error) {
       console.error('Error creating skill:', error);
-      res.status(500).json({ message: 'Server error' });
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error instanceof Error ? error.message : error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+      console.error('Request body:', req.body);
+      res.status(500).json({ 
+        message: 'Server error',
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
   });
 
@@ -2829,6 +2862,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(debugData);
     } catch (error: unknown) {
       console.error(`❌ [DEBUG ROUTE] Error getting debug data:`, error);
+            
+      
+      res.status(500).json({ message: 'Server error' });
       console.error(`❌ [DEBUG ROUTE] Error type:`, typeof error);
       console.error(`❌ [DEBUG ROUTE] Error message:`, error instanceof Error ? error.message : 'Unknown error');
       console.error(`❌ [DEBUG ROUTE] Error stack:`, error instanceof Error ? error.stack : 'No stack available');
@@ -2881,6 +2917,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Extract resume text from existing resume (individual)
+  app.post('/api/extract-resume-text', authenticateToken, async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Profile not found' });
+      }
+
+      if (!candidate.resumeUrl) {
+        return res.status(400).json({ message: 'No resume uploaded' });
+      }
+
+      const resumePath = `./uploads/${candidate.resumeUrl.split('/').pop()}`;
+      
+      // Call Python script to extract resume text
+      let resumeText = '';
+      try {
+        const { spawn } = await import('child_process');
+        const python = spawn(getPythonCommand(), [
+          './server/resume_parser/extract_resume_text.py',
+          resumePath
+        ], {
+          env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+        });
+        let output = '';
+        let errorOutput = '';
+        python.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        python.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        await new Promise((resolve) => {
+          python.on('close', (code) => {
+            if (code === 0) {
+              resumeText = output;
+              resolve(null);
+            } else {
+              console.error('Resume parsing error:', errorOutput);
+              resumeText = '';
+              resolve(null);
+            }
+          });
+        });
+      } catch (err) {
+        console.error('Failed to parse resume:', err);
+        resumeText = '';
+      }
+
+      if (resumeText) {
+        await storage.updateCandidate(candidate.id, { resumeText });
+        res.json({ resumeText, message: 'Resume text extracted successfully' });
+      } else {
+        res.status(400).json({ message: 'Failed to extract resume text' });
+      }
+    } catch (error) {
+      console.error('Extract resume text error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
   // Batch extract resume text for all candidates in a job
   app.post('/api/jobs/:jobId/extract-resume-text', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
@@ -2907,7 +3004,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           // Extract resume text using the existing Python script
           const { spawn } = await import('child_process');
-          const py = spawn('C:\\Users\\pc\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', ['server/resume_parser/extract_resume_text.py'], {
+          const py = spawn(getPythonCommand(), ['server/resume_parser/extract_resume_text.py'], {
             env: { ...process.env }
           });
           
