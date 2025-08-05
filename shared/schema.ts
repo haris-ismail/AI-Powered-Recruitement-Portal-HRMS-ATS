@@ -438,3 +438,8 @@ export interface SearchResult {
   filters: SearchFilters;
   suggestions: string[];
 }
+
+export const skillRequestSchema = z.object({
+  name: z.string().min(1),
+  expertiseLevel: z.number().min(1).max(5)
+});

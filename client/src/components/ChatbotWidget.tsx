@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, MessageCircle, X, Bot } from 'lucide-react';
+import { Send, MessageCircle, X, Bot, Trash2 } from 'lucide-react';
 import { useAuthMigration } from '@/lib/auth-migration';
 
 interface Message {
@@ -130,10 +130,19 @@ export function ChatbotWidget({ className }: ChatbotWidgetProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={clearChat}
+                    onClick={() => setIsOpen(false)}
                     className="h-8 w-8 p-0 text-white hover:bg-blue-600"
                   >
                     <X className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearChat}
+                    className="h-8 w-8 p-0 text-white hover:bg-blue-600 ml-2"
+                    title="Clear Chat"
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

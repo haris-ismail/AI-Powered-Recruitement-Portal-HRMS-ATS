@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Calendar, MapPin, GraduationCap, Briefcase, FileText, Star, MessageSquare, Plus, Edit, Trash2 } from "lucide-react";
+import { User, Mail, Calendar, MapPin, GraduationCap, Briefcase, FileText, Star, MessageSquare, Plus, Edit, Trash2, Code, Eye } from "lucide-react";
 import { useState } from "react";
 import EmailTemplateSelectModal from "./email-template-select-modal";
 import { useLocation } from "wouter";
@@ -81,6 +81,7 @@ export default function CandidateProfileCard({
   const { user } = useAuthMigration();
   const { toast } = useToast();
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showCoverLetterModal, setShowCoverLetterModal] = useState(false);
   const [location, navigate] = useLocation();
 
   // Admin Notes State
@@ -371,9 +372,16 @@ export default function CandidateProfileCard({
           {candidate?.education && candidate.education.length > 0 && (
             <div className="flex items-start text-gray-600">
               <GraduationCap className="h-4 w-4 mr-2 mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <span className="font-medium">Latest Education:</span>
-                <p>{candidate.education[0].degree} at {candidate.education[0].institution}</p>
+                <div className="mt-1 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                  <div className="font-medium text-gray-900">{candidate.education[0].degree}</div>
+                  <div className="text-sm text-gray-600">{candidate.education[0].institution}</div>
+                  <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                    <Calendar className="h-3 w-3" />
+                    <span>{candidate.education[0].fromDate} - {candidate.education[0].toDate}</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -381,9 +389,22 @@ export default function CandidateProfileCard({
           {candidate?.experience && candidate.experience.length > 0 && (
             <div className="flex items-start text-gray-600">
               <Briefcase className="h-4 w-4 mr-2 mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <span className="font-medium">Latest Experience:</span>
-                <p>{candidate.experience[0].role} at {candidate.experience[0].company}</p>
+                <div className="mt-1 p-2 bg-green-50 rounded-lg border border-green-100">
+                  <div className="font-medium text-gray-900">{candidate.experience[0].role}</div>
+                  <div className="text-sm text-gray-600">{candidate.experience[0].company}</div>
+                  <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                    <Calendar className="h-3 w-3" />
+                    <span>{candidate.experience[0].fromDate} - {candidate.experience[0].toDate}</span>
+                  </div>
+                  {candidate.experience[0].skills && (
+                    <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                      <Code className="h-3 w-3" />
+                      <span className="text-blue-600">{candidate.experience[0].skills}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -394,6 +415,59 @@ export default function CandidateProfileCard({
               <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" >
                 View Resume
               </a>
+            </div>
+          )}
+
+          {/* Cover Letter Section */}
+          {candidate?.motivationLetter && (
+            <div className="flex items-start text-gray-600">
+              <FileText className="h-4 w-4 mr-2 mt-0.5" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Cover Letter:</span>
+                  <Dialog open={showCoverLetterModal} onOpenChange={setShowCoverLetterModal}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex items-center space-x-1 h-6 text-xs">
+                        <Eye className="h-3 w-3" />
+                        <span>View Full</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center space-x-2">
+                          <FileText className="h-5 w-5" />
+                          <span>Cover Letter</span>
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="whitespace-pre-line text-gray-700 leading-relaxed">
+                        {candidate.motivationLetter}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+                <div className="text-sm text-gray-600 mt-1 line-clamp-2">
+                  {candidate.motivationLetter}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Skills Section */}
+          {candidate?.skills && candidate.skills.length > 0 && (
+            <div className="flex items-start text-gray-600">
+              <Code className="h-4 w-4 mr-2 mt-0.5" />
+              <div className="flex-1">
+                <span className="font-medium">Skills:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {candidate.skills.map((skill: any, index: number) => (
+                    <div key={index} className="flex items-center space-x-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                      <Star className="h-3 w-3" />
+                      <span>{skill.name}</span>
+                      <span className="text-blue-600">({["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

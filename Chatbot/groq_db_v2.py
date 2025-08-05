@@ -53,6 +53,17 @@ client = Groq()
 instructor_client = instructor.from_groq(Groq(), mode=instructor.Mode.JSON)
 
 # ================== TOOL FUNCTIONS =====================
+def clean_nan_values(obj):
+    """Recursively replace NaN values with None for JSON serialization"""
+    if isinstance(obj, dict):
+        return {key: clean_nan_values(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_nan_values(item) for item in obj]
+    elif pd.isna(obj):
+        return None
+    else:
+        return obj
+
 def get_active_jobs_from_postgresql() -> Dict[str, Any]:
     """Fetch up to 10 currently active job listings from the HRMS PostgreSQL database. Use this tool when the user asks about available jobs, job openings, or current positions at NASTP. Returns a list of jobs with title, department, experience level, required skills, description, status, location, and salary_min. If no jobs are found, returns an empty list."""
     try:
@@ -61,10 +72,14 @@ def get_active_jobs_from_postgresql() -> Dict[str, Any]:
         # Drop 'created_at' column if it exists
         if 'created_at' in df.columns:
             df = df.drop(columns=['created_at'])
-                # Drop 'created_at' column if it exists
+        # Drop 'assessment_template_id' column if it exists
         if 'assessment_template_id' in df.columns:
             df = df.drop(columns=['assessment_template_id'])
+        
+        # Convert to dict and clean NaN values
         jobs = df.to_dict(orient="records")
+        jobs = clean_nan_values(jobs)
+        
         return {"jobs": jobs, "is_error": False}
     except Exception as e:
         logger.error(f"Error fetching active jobs: {e}")
@@ -80,6 +95,7 @@ def get_company_info_from_postgresql(section_names: List[str]) -> Dict[str, Any]
         params = tuple([s.lower() for s in section_names])
         df = pd.read_sql(query, engine, params=params)
         info = df.to_dict(orient="records")
+        info = clean_nan_values(info)
         return {"company_info": info, "is_error": False}
     except Exception as e:
         logger.error(f"Error fetching company info: {e}")
@@ -94,11 +110,13 @@ def get_candidate_from_postgresql(first_name: str, last_name: str) -> Dict[str, 
         # Drop 'created_at' column if it exists
         if 'created_at' in df.columns:
             df = df.drop(columns=['created_at'])
-                # Drop 'created_at' column if it exists
+        # Drop 'updated_at' column if it exists
         if 'updated_at' in df.columns:
             df = df.drop(columns=['updated_at'])
         if not df.empty:
-            return {"candidate": df.iloc[0].to_dict(), "is_error": False}
+            candidate_data = df.iloc[0].to_dict()
+            candidate_data = clean_nan_values(candidate_data)
+            return {"candidate": candidate_data, "is_error": False}
         else:
             return {"candidate": {}, "is_error": False}
     except Exception as e:
@@ -220,6 +238,7 @@ def match_candidates_to_jobs_from_postgresql(first_name: str, last_name: str) ->
             jobs_df = jobs_df.drop(columns=['assessment_template_id'])
         
         jobs = jobs_df.to_dict(orient="records")
+        jobs = clean_nan_values(jobs)
 
         return {
             "candidate": candidate,
@@ -286,6 +305,7 @@ def get_candidate_status_from_postgresql(first_name: str, last_name: str) -> Dic
             df = pd.read_sql(simple_query, engine, params=(f"%{first_name}%",))
         
         results = df.to_dict(orient="records")
+        results = clean_nan_values(results)
         return {"candidate_status": results, "is_error": False}
     except Exception as e:
         logger.error(f"Error fetching candidate status: {e}")
@@ -313,6 +333,7 @@ def get_my_applications_status(user_id: int) -> Dict[str, Any]:
         params = (user_id,)
         df = pd.read_sql(query, engine, params=params)
         results = df.to_dict(orient="records")
+        results = clean_nan_values(results)
         return {"candidate_status": results, "is_error": False}
     except Exception as e:
         logger.error(f"Error fetching candidate status: {e}")
@@ -329,7 +350,9 @@ def get_my_profile(user_id: int) -> Dict[str, Any]:
         if 'updated_at' in df.columns:
             df = df.drop(columns=['updated_at'])
         if not df.empty:
-            return {"candidate": df.iloc[0].to_dict(), "is_error": False}
+            candidate_data = df.iloc[0].to_dict()
+            candidate_data = clean_nan_values(candidate_data)
+            return {"candidate": candidate_data, "is_error": False}
         else:
             return {"candidate": {}, "is_error": False}
     except Exception as e:
@@ -353,6 +376,7 @@ def get_my_job_recommendations(user_id: int) -> Dict[str, Any]:
             }
         
         candidate = candidate_df.iloc[0].to_dict()
+        candidate = clean_nan_values(candidate)
         
         # Get active jobs
         jobs_query = "SELECT * FROM jobs WHERE status = 'active' LIMIT 10"
@@ -365,6 +389,7 @@ def get_my_job_recommendations(user_id: int) -> Dict[str, Any]:
             jobs_df = jobs_df.drop(columns=['assessment_template_id'])
         
         jobs = jobs_df.to_dict(orient="records")
+        jobs = clean_nan_values(jobs)
 
         return {
             "candidate": candidate,
@@ -732,7 +757,7 @@ Important: For normal conversation or chat messages (such as greetings(hi , hell
 
 You are an AI HR Assistant for NASTP. You MUST answer queries using ONLY the provided tools if query type matches the tool. 
 NEVER hallucinate or make up information when tools are used(for that query type). Use the tools to fetch jobs, company info, or candidate info as needed. If no info is found by tool, say so. Also for other type of queries which tools is not defined for, you can answer the query using your knowledge base.
-
+Never mention any sort of ids in responses. e.g job id, application id, etc.
 CRITICAL CONTEXT HANDLING RULES:
 - ALWAYS check the conversation history for context when handling follow-up questions
 - If a user asks about "this job", "the job", "its salary", etc., refer to the most recently mentioned job in the conversation history
@@ -740,7 +765,7 @@ CRITICAL CONTEXT HANDLING RULES:
 - For follow-up questions about specific job details (salary, requirements, location, etc.), use the information already retrieved in the conversation history
 - Only make new tool calls when the user asks for fresh information or when context is insufficient
 
-For Job Queries(Active/ available/ current Jobs): Use the get_active_jobs_from_postgresql tool. This tool fetches ALL active jobs and does NOT accept any filtering parameters. When users ask about specific job details (like salary, requirements, etc.), use this tool to get all jobs and then provide the specific information from the results. Do NOT try to pass filtering parameters to this tool. For follow-up questions about specific jobs (like "what is its salary"), use get_active_jobs_from_postgresql without any parameters and then find the relevant job in the results.
+For Job Queries(Active/ available/ current Jobs): Use the get_active_jobs_from_postgresql tool. This tool fetches ALL active jobs and does NOT accept any filtering parameters. When users ask about specific job details (like salary, requirements, etc.), use this tool to get all jobs and then provide the specific information from the results. Do NOT try to pass filtering parameters to this tool. For follow-up questions about specific jobs (like "what is its salary"), use get_active_jobs_from_postgresql without any parameters and then find the relevant job in the results. dont mention any ids
 For Company Info (mission, vision, benefits, about, work_environment(culture), faqs,application_process): Use get_company_info_from_postgresql. Remember to use the correct section names as given previously. faqs is for frequently asked questions.
 
 For Admin Users:

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -23,7 +24,25 @@ import {
   GraduationCap,
   Building,
   Save,
-  CheckCircle
+  CheckCircle,
+  Mail,
+  Phone,
+  Globe,
+  Award,
+  Code,
+  BookOpen,
+  Clock,
+  ExternalLink,
+  Eye,
+  Star,
+  Zap,
+  Target,
+  School,
+  Workflow,
+  Layers,
+  Activity,
+  Edit,
+  X
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/NASTPLogo.png";
@@ -48,6 +67,8 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
   console.log("ProfileCard received profile:", profile); // Debug log
   console.log("ProfileCard resumeText:", profile.resumeText); // Debug log
   
+  const [showCoverLetterModal, setShowCoverLetterModal] = useState(false);
+  
   return (
     <Card className="mb-6">
       <CardHeader>
@@ -61,71 +82,209 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
           {profile.profilePicture ? (
             <img src={profile.profilePicture} alt="Profile" className="h-20 w-20 rounded-full object-cover border mr-4" />
           ) : (
-            <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 mr-4">No Image</div>
+            <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 mr-4">
+              <User className="h-8 w-8" />
+            </div>
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div>
-            <div className="font-semibold">CNIC:</div>
-            <div>{profile.cnic}</div>
-            <div className="font-semibold">Name:</div>
-            <div>{profile.firstName} {profile.lastName}</div>
-            <div className="font-semibold mt-2">Date of Birth:</div>
-            <div>{profile.dateOfBirth}</div>
-            <div className="font-semibold mt-2">Email:</div>
-            <div>{profile.email}</div>
+            <div className="flex items-center space-x-2 mb-2">
+              <Target className="h-4 w-4 text-gray-500" />
+              <span className="font-semibold">CNIC:</span>
+            </div>
+            <div className="ml-6">{profile.cnic}</div>
+            
+            <div className="flex items-center space-x-2 mb-2 mt-3">
+              <User className="h-4 w-4 text-gray-500" />
+              <span className="font-semibold">Name:</span>
+            </div>
+            <div className="ml-6">{profile.firstName} {profile.lastName}</div>
+            
+            <div className="flex items-center space-x-2 mb-2 mt-3">
+              <Calendar className="h-4 w-4 text-gray-500" />
+              <span className="font-semibold">Date of Birth:</span>
+            </div>
+            <div className="ml-6">{profile.dateOfBirth}</div>
+            
+            <div className="flex items-center space-x-2 mb-2 mt-3">
+              <Mail className="h-4 w-4 text-gray-500" />
+              <span className="font-semibold">Email:</span>
+            </div>
+            <div className="ml-6">{profile.email}</div>
           </div>
           <div>
-            <div className="font-semibold">Address:</div>
-            <div>{profile.apartment}, {profile.street}, {profile.area}</div>
-            <div>{profile.city}, {profile.province}, {profile.postalCode}</div>
+            <div className="flex items-center space-x-2 mb-2">
+              <MapPin className="h-4 w-4 text-gray-500" />
+              <span className="font-semibold">Address:</span>
+            </div>
+            <div className="ml-6">
+              <div>{profile.apartment}, {profile.street}, {profile.area}</div>
+              <div>{profile.city}, {profile.province}, {profile.postalCode}</div>
+            </div>
           </div>
         </div>
+        
         <div className="mb-4">
-          <div className="font-semibold">Motivation Letter:</div>
-          <div className="whitespace-pre-line text-gray-700 text-sm">{profile.motivationLetter || <span className="italic text-gray-400">Not provided</span>}</div>
-        </div>
-        <div className="mb-4">
-          <div className="font-semibold mb-1">Education:</div>
-          {educationList && educationList.length > 0 ? educationList.map((edu: any, i: number) => (
-            <div key={i} className="text-sm mb-1">{edu.degree} at {edu.institution} ({edu.fromDate} - {edu.toDate})</div>
-          )) : <span className="italic text-gray-400">No education info</span>}
-        </div>
-        <div className="mb-4">
-          <div className="font-semibold mb-1">Experience:</div>
-          {experienceList && experienceList.length > 0 ? experienceList.map((exp: any, i: number) => (
-            <div key={i} className="text-sm mb-1">{exp.role} at {exp.company} ({exp.fromDate} - {exp.toDate})</div>
-          )) : <span className="italic text-gray-400">No experience info</span>}
-        </div>
-        <div className="mb-4">
-          <div className="font-semibold">Resume:</div>
-          {profile.resumeUrl ? (
-            <a href={profile.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View Resume</a>
-          ) : <span className="italic text-gray-400">Not uploaded</span>}
-        </div>
-        {/* Show extracted resume text if available */}
-        <div className="mb-4">
-          <div className="font-semibold">Extracted Resume Text:</div>
-          {profile.resumeUrl && !profile.resumeText && (
-            <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-              ⚠️ Resume uploaded but text not extracted. Click "Extract Resume Text" in edit mode.
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-4 w-4 text-gray-500" />
+              <span className="font-semibold">Cover Letter:</span>
             </div>
-          )}
-          <div className="whitespace-pre-line text-gray-700 text-xs max-h-60 overflow-auto border rounded p-2 bg-gray-50">
-            {profile.resumeText || <span className="italic text-gray-400">No extracted text available</span>}
+            {profile.motivationLetter && (
+              <Dialog open={showCoverLetterModal} onOpenChange={setShowCoverLetterModal}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex items-center space-x-1">
+                    <Eye className="h-3 w-3" />
+                    <span>View Full</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center space-x-2">
+                      <FileText className="h-5 w-5" />
+                      <span>Cover Letter</span>
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="whitespace-pre-line text-gray-700 leading-relaxed">
+                    {profile.motivationLetter}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+          <div className="ml-6">
+            {profile.motivationLetter ? (
+              <div className="text-gray-700 text-sm line-clamp-3">
+                {profile.motivationLetter}
+              </div>
+            ) : (
+              <span className="italic text-gray-400">Not provided</span>
+            )}
           </div>
         </div>
+        
         <div className="mb-4">
-          <div className="font-semibold mb-1">Skills:</div>
-          {skills && skills.length > 0 ? skills.map((skill: any, i: number) => (
-            <div key={i} className="flex items-center space-x-2 mb-1">
-              <span className="w-40">{skill.name}</span>
-              <Slider min={1} max={5} step={1} value={[skill.expertiseLevel]} disabled className="w-32" />
-              <span className="w-20 text-center">{["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]}</span>
-            </div>
-          )) : <span className="italic text-gray-400">No skills added</span>}
+          <div className="flex items-center space-x-2 mb-2">
+            <GraduationCap className="h-4 w-4 text-gray-500" />
+            <span className="font-semibold">Education:</span>
+          </div>
+          <div className="ml-6">
+            {educationList && educationList.length > 0 ? (
+              <div className="space-y-2">
+                {educationList.map((edu: any, i: number) => (
+                  <div key={i} className="flex items-start space-x-2 p-2 bg-gray-50 rounded-lg">
+                    <School className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{edu.degree}</div>
+                      <div className="text-sm text-gray-600">{edu.institution}</div>
+                      <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{edu.fromDate} - {edu.toDate}</span>
+                        {edu.obtainedMarks && edu.totalMarks && (
+                          <>
+                            <span>•</span>
+                            <span>{edu.obtainedMarks}/{edu.totalMarks}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="italic text-gray-400">No education info</span>
+            )}
+          </div>
         </div>
-        <Button type="button" onClick={onEdit} className="mt-2">Edit Profile</Button>
+        
+        <div className="mb-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <Building className="h-4 w-4 text-gray-500" />
+            <span className="font-semibold">Experience:</span>
+          </div>
+          <div className="ml-6">
+            {experienceList && experienceList.length > 0 ? (
+              <div className="space-y-2">
+                {experienceList.map((exp: any, i: number) => (
+                  <div key={i} className="flex items-start space-x-2 p-2 bg-gray-50 rounded-lg">
+                    <Workflow className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{exp.role}</div>
+                      <div className="text-sm text-gray-600">{exp.company}</div>
+                      <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{exp.fromDate} - {exp.toDate}</span>
+                      </div>
+                      {exp.skills && (
+                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                          <Code className="h-3 w-3" />
+                          <span className="text-blue-600">{exp.skills}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="italic text-gray-400">No experience info</span>
+            )}
+          </div>
+        </div>
+        
+        <div className="mb-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <FileText className="h-4 w-4 text-gray-500" />
+            <span className="font-semibold">Resume:</span>
+          </div>
+          <div className="ml-6">
+            {profile.resumeUrl ? (
+              <a href={profile.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm flex items-center space-x-1">
+                <ExternalLink className="h-3 w-3" />
+                <span>View Resume</span>
+              </a>
+            ) : (
+              <span className="italic text-gray-400">Not uploaded</span>
+            )}
+          </div>
+        </div>
+        
+        <div className="mb-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <Zap className="h-4 w-4 text-gray-500" />
+            <span className="font-semibold">Skills:</span>
+          </div>
+          <div className="ml-6">
+            {skills && skills.length > 0 ? (
+              <div className="space-y-2">
+                {skills.map((skill: any, i: number) => (
+                  <div key={i} className="flex items-center space-x-3 p-2 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">
+                    <div className="flex items-center space-x-2 flex-1">
+                      <Code className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium text-gray-900 min-w-[120px]">{skill.name}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Slider min={1} max={5} step={1} value={[skill.expertiseLevel]} disabled className="w-24" />
+                      <div className="flex items-center space-x-1">
+                        <Star className="h-3 w-3 text-yellow-400" />
+                        <span className="text-xs font-medium text-gray-700 min-w-[80px] text-center">
+                          {["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="italic text-gray-400">No skills added</span>
+            )}
+          </div>
+        </div>
+        
+        <Button type="button" onClick={onEdit} className="mt-2 flex items-center space-x-2">
+          <Edit className="h-4 w-4" />
+          <span>Edit Profile</span>
+        </Button>
       </CardContent>
     </Card>
   );
@@ -745,13 +904,19 @@ export default function CandidateProfile() {
                   {profileQueryData.profilePicture ? (
                     <img src={profileQueryData.profilePicture} alt="Profile" className="h-20 w-20 rounded-full object-cover border" />
                   ) : (
-                    <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">No Image</div>
+                    <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
+                      <User className="h-8 w-8" />
+                    </div>
                   )}
-                  <input
-                    type="file"
-                    accept="image/png, image/jpeg, image/jpg"
-                    onChange={handleProfilePictureUpload}
-                  />
+                  <div className="flex items-center space-x-2">
+                    <Upload className="h-4 w-4 text-gray-500" />
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/jpg"
+                      onChange={handleProfilePictureUpload}
+                      className="text-sm"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -764,7 +929,10 @@ export default function CandidateProfile() {
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="cnic">CNIC</Label>
+                  <Label htmlFor="cnic" className="flex items-center space-x-2">
+                    <Target className="h-4 w-4" />
+                    <span>CNIC</span>
+                  </Label>
                   <Input
                     id="cnic"
                     value={profileQueryData.cnic}
@@ -775,7 +943,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="firstName">First Name</Label>
+                  <Label htmlFor="firstName" className="flex items-center space-x-2">
+                    <User className="h-4 w-4" />
+                    <span>First Name</span>
+                  </Label>
                   <Input
                     id="firstName"
                     value={profileQueryData.firstName}
@@ -784,7 +955,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="lastName">Last Name</Label>
+                  <Label htmlFor="lastName" className="flex items-center space-x-2">
+                    <User className="h-4 w-4" />
+                    <span>Last Name</span>
+                  </Label>
                   <Input
                     id="lastName"
                     value={profileQueryData.lastName}
@@ -793,7 +967,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                  <Label htmlFor="dateOfBirth" className="flex items-center space-x-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>Date of Birth</span>
+                  </Label>
                   <Input
                     id="dateOfBirth"
                     type="date"
@@ -802,7 +979,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" className="flex items-center space-x-2">
+                    <Mail className="h-4 w-4" />
+                    <span>Email</span>
+                  </Label>
                   <Input
                     id="email"
                     type="email"
@@ -824,7 +1004,10 @@ export default function CandidateProfile() {
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="apartment">Apartment/Unit</Label>
+                  <Label htmlFor="apartment" className="flex items-center space-x-2">
+                    <Building className="h-4 w-4" />
+                    <span>Apartment/Unit</span>
+                  </Label>
                   <Input
                     id="apartment"
                     value={profileQueryData.apartment}
@@ -833,7 +1016,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="street">Street</Label>
+                  <Label htmlFor="street" className="flex items-center space-x-2">
+                    <MapPin className="h-4 w-4" />
+                    <span>Street</span>
+                  </Label>
                   <Input
                     id="street"
                     value={profileQueryData.street}
@@ -842,7 +1028,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="area">Area</Label>
+                  <Label htmlFor="area" className="flex items-center space-x-2">
+                    <Globe className="h-4 w-4" />
+                    <span>Area</span>
+                  </Label>
                   <Input
                     id="area"
                     value={profileQueryData.area}
@@ -851,7 +1040,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="city">City</Label>
+                  <Label htmlFor="city" className="flex items-center space-x-2">
+                    <MapPin className="h-4 w-4" />
+                    <span>City</span>
+                  </Label>
                   <Input
                     id="city"
                     value={profileQueryData.city}
@@ -860,7 +1052,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="province">Province/State</Label>
+                  <Label htmlFor="province" className="flex items-center space-x-2">
+                    <Globe className="h-4 w-4" />
+                    <span>Province/State</span>
+                  </Label>
                   <Input
                     id="province"
                     value={profileQueryData.province}
@@ -869,7 +1064,10 @@ export default function CandidateProfile() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="postalCode">Postal Code</Label>
+                  <Label htmlFor="postalCode" className="flex items-center space-x-2">
+                    <Target className="h-4 w-4" />
+                    <span>Postal Code</span>
+                  </Label>
                   <Input
                     id="postalCode"
                     value={profileQueryData.postalCode}
@@ -887,17 +1085,24 @@ export default function CandidateProfile() {
                   <GraduationCap className="h-5 w-5" />
                   <span>Education</span>
                 </CardTitle>
-                <Button type="button" variant="outline" onClick={addEducation}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Education
+                <Button type="button" variant="outline" onClick={addEducation} className="flex items-center space-x-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Add Education</span>
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
                 {educationList.map((education, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                  <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <School className="h-5 w-5 text-blue-600" />
+                      <span className="font-medium text-gray-900">Education Entry #{index + 1}</span>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor={`degree-${index}`}>Degree Program</Label>
+                        <Label htmlFor={`degree-${index}`} className="flex items-center space-x-2">
+                          <Award className="h-4 w-4" />
+                          <span>Degree Program</span>
+                        </Label>
                         <Input
                           id={`degree-${index}`}
                           value={education.degree}
@@ -910,7 +1115,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`institution-${index}`}>Institution</Label>
+                        <Label htmlFor={`institution-${index}`} className="flex items-center space-x-2">
+                          <Building className="h-4 w-4" />
+                          <span>Institution</span>
+                        </Label>
                         <Input
                           id={`institution-${index}`}
                           value={education.institution}
@@ -923,7 +1131,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`fromDate-${index}`}>From Date</Label>
+                        <Label htmlFor={`fromDate-${index}`} className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>From Date</span>
+                        </Label>
                         <Input
                           id={`fromDate-${index}`}
                           type="date"
@@ -936,7 +1147,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`toDate-${index}`}>To Date</Label>
+                        <Label htmlFor={`toDate-${index}`} className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>To Date</span>
+                        </Label>
                         <Input
                           id={`toDate-${index}`}
                           type="date"
@@ -949,7 +1163,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`totalMarks-${index}`}>Total Marks/CGPA</Label>
+                        <Label htmlFor={`totalMarks-${index}`} className="flex items-center space-x-2">
+                          <Star className="h-4 w-4" />
+                          <span>Total Marks/CGPA</span>
+                        </Label>
                         <Input
                           id={`totalMarks-${index}`}
                           value={education.totalMarks}
@@ -962,7 +1179,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`obtainedMarks-${index}`}>Obtained Marks/CGPA</Label>
+                        <Label htmlFor={`obtainedMarks-${index}`} className="flex items-center space-x-2">
+                          <Award className="h-4 w-4" />
+                          <span>Obtained Marks/CGPA</span>
+                        </Label>
                         <Input
                           id={`obtainedMarks-${index}`}
                           value={education.obtainedMarks}
@@ -975,16 +1195,16 @@ export default function CandidateProfile() {
                         />
                       </div>
                     </div>
-                    <div className="flex justify-between items-center mt-4">
+                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => removeEducation(index)}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 flex items-center space-x-1"
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Remove
+                        <Trash2 className="h-4 w-4" />
+                        <span>Remove</span>
                       </Button>
                       {!education.id ? (
                         <Button
@@ -993,16 +1213,17 @@ export default function CandidateProfile() {
                           size="sm"
                           onClick={() => handleEducationSubmit(education, index)}
                           disabled={createEducationMutation.isPending}
+                          className="flex items-center space-x-1"
                         >
                           {createEducationMutation.isPending ? (
                             <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-1"></div>
-                              Saving...
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                              <span>Saving...</span>
                             </>
                           ) : (
                             <>
-                              <Save className="h-4 w-4 mr-1" />
-                              Save
+                              <Save className="h-4 w-4" />
+                              <span>Save</span>
                             </>
                           )}
                         </Button>
@@ -1025,17 +1246,24 @@ export default function CandidateProfile() {
                   <Building className="h-5 w-5" />
                   <span>Work Experience</span>
                 </CardTitle>
-                <Button type="button" variant="outline" onClick={addExperience}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Experience
+                <Button type="button" variant="outline" onClick={addExperience} className="flex items-center space-x-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Add Experience</span>
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
                 {experienceList.map((experience, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                  <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-green-50 to-emerald-50">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Workflow className="h-5 w-5 text-green-600" />
+                      <span className="font-medium text-gray-900">Experience Entry #{index + 1}</span>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor={`company-${index}`}>Company</Label>
+                        <Label htmlFor={`company-${index}`} className="flex items-center space-x-2">
+                          <Building className="h-4 w-4" />
+                          <span>Company</span>
+                        </Label>
                         <Input
                           id={`company-${index}`}
                           value={experience.company}
@@ -1048,7 +1276,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`role-${index}`}>Role</Label>
+                        <Label htmlFor={`role-${index}`} className="flex items-center space-x-2">
+                          <Briefcase className="h-4 w-4" />
+                          <span>Role</span>
+                        </Label>
                         <Input
                           id={`role-${index}`}
                           value={experience.role}
@@ -1061,7 +1292,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`expFromDate-${index}`}>From Date</Label>
+                        <Label htmlFor={`expFromDate-${index}`} className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>From Date</span>
+                        </Label>
                         <Input
                           id={`expFromDate-${index}`}
                           type="date"
@@ -1074,7 +1308,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`expToDate-${index}`}>To Date</Label>
+                        <Label htmlFor={`expToDate-${index}`} className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>To Date</span>
+                        </Label>
                         <Input
                           id={`expToDate-${index}`}
                           type="date"
@@ -1087,7 +1324,10 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <Label htmlFor={`skills-${index}`}>Skills</Label>
+                        <Label htmlFor={`skills-${index}`} className="flex items-center space-x-2">
+                          <Code className="h-4 w-4" />
+                          <span>Skills Used</span>
+                        </Label>
                         <Input
                           id={`skills-${index}`}
                           value={experience.skills}
@@ -1100,16 +1340,16 @@ export default function CandidateProfile() {
                         />
                       </div>
                     </div>
-                    <div className="flex justify-between items-center mt-4">
+                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => removeExperience(index)}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 flex items-center space-x-1"
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Remove
+                        <Trash2 className="h-4 w-4" />
+                        <span>Remove</span>
                       </Button>
                       {!experience.id ? (
                         <Button
@@ -1118,16 +1358,17 @@ export default function CandidateProfile() {
                           size="sm"
                           onClick={() => handleExperienceSubmit(experience, index)}
                           disabled={createExperienceMutation.isPending}
+                          className="flex items-center space-x-1"
                         >
                           {createExperienceMutation.isPending ? (
                             <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-1"></div>
-                              Saving...
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                              <span>Saving...</span>
                             </>
                           ) : (
                             <>
-                              <Save className="h-4 w-4 mr-1" />
-                              Save
+                              <Save className="h-4 w-4" />
+                              <span>Save</span>
                             </>
                           )}
                         </Button>
@@ -1143,7 +1384,7 @@ export default function CandidateProfile() {
               </CardContent>
             </Card>
 
-            {/* Resume & Motivation Letter */}
+            {/* Resume & Cover Letter */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -1153,7 +1394,10 @@ export default function CandidateProfile() {
               </CardHeader>
               <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="resume">Resume Upload</Label>
+                  <Label htmlFor="resume" className="flex items-center space-x-2">
+                    <Upload className="h-4 w-4" />
+                    <span>Resume Upload</span>
+                  </Label>
                   <div 
                     className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
                     onClick={() => fileInputRef.current?.click()}
@@ -1174,9 +1418,10 @@ export default function CandidateProfile() {
                           href={profileQueryData.resumeUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-primary hover:underline text-sm block"
+                          className="text-primary hover:underline text-sm block flex items-center justify-center space-x-1"
                         >
-                          View Current Resume
+                          <ExternalLink className="h-3 w-3" />
+                          <span>View Current Resume</span>
                         </a>
                         <Button 
                           type="button" 
@@ -1184,21 +1429,35 @@ export default function CandidateProfile() {
                           size="sm"
                           onClick={() => extractResumeTextMutation.mutate()}
                           disabled={extractResumeTextMutation.isPending}
+                          className="flex items-center space-x-1"
                         >
-                          {extractResumeTextMutation.isPending ? "Extracting..." : "Extract Resume Text"}
+                          {extractResumeTextMutation.isPending ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
+                              <span>Extracting...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Activity className="h-3 w-3" />
+                              <span>Extract Resume Text</span>
+                            </>
+                          )}
                         </Button>
                       </div>
                     )}
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="motivationLetter">Motivation Letter</Label>
+                  <Label htmlFor="motivationLetter" className="flex items-center space-x-2">
+                    <FileText className="h-4 w-4" />
+                    <span>Cover Letter</span>
+                  </Label>
                   <Textarea
                     id="motivationLetter"
                     rows={6}
                     value={profileQueryData.motivationLetter}
                     onChange={(e) => setProfileData({ ...profileQueryData, motivationLetter: e.target.value })}
-                    placeholder="Write a brief motivation letter..."
+                    placeholder="Write a brief cover letter..."
                   />
                 </div>
               </CardContent>
@@ -1208,47 +1467,88 @@ export default function CandidateProfile() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
+                  <Zap className="h-5 w-5" />
                   <span>Skills</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {skills.map((skill, idx) => (
-                    <div key={skill.id} className="flex items-center space-x-4">
-                      <input
-                        className="border rounded px-2 py-1 w-40"
-                        value={skill.name}
-                        onChange={e => handleUpdateSkill(skill.id, { name: e.target.value, expertiseLevel: skill.expertiseLevel })}
-                      />
-                      <Slider
-                        min={1}
-                        max={5}
-                        step={1}
-                        value={[skill.expertiseLevel]}
-                        onValueChange={([val]) => handleUpdateSkill(skill.id, { name: skill.name, expertiseLevel: val })}
-                        className="w-32"
-                      />
-                      <span className="w-20 text-center">{["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]}</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => handleDeleteSkill(skill.id)} className="text-red-600">Delete</Button>
+                    <div key={skill.id} className="flex items-center space-x-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
+                      <div className="flex items-center space-x-2 flex-1">
+                        <Code className="h-4 w-4 text-purple-600" />
+                        <input
+                          className="border rounded px-3 py-2 flex-1 bg-white"
+                          value={skill.name}
+                          onChange={e => handleUpdateSkill(skill.id, { name: e.target.value, expertiseLevel: skill.expertiseLevel })}
+                          placeholder="Skill name"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-2">
+                          <Star className="h-4 w-4 text-yellow-500" />
+                          <Slider
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={[skill.expertiseLevel]}
+                            onValueChange={([val]) => handleUpdateSkill(skill.id, { name: skill.name, expertiseLevel: val })}
+                            className="w-24"
+                          />
+                        </div>
+                        <span className="w-20 text-center text-sm font-medium text-gray-700">
+                          {["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]}
+                        </span>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleDeleteSkill(skill.id)} 
+                          className="text-red-600 hover:text-red-700 flex items-center space-x-1"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>Delete</span>
+                        </Button>
+                      </div>
                     </div>
                   ))}
-                  <div className="flex items-center space-x-4 mt-2">
-                    <input
-                      className="border rounded px-2 py-1 w-40"
-                      value={newSkill.name}
-                      onChange={e => setNewSkill({ ...newSkill, name: e.target.value })}
-                      placeholder="Skill name"
-                    />
-                    <Slider
-                      min={1}
-                      max={5}
-                      step={1}
-                      value={[newSkill.expertiseLevel]}
-                      onValueChange={([val]) => setNewSkill({ ...newSkill, expertiseLevel: val })}
-                      className="w-32"
-                    />
-                    <span className="w-20 text-center">{["Beginner", "", "Intermediate", "", "Expert"][newSkill.expertiseLevel-1]}</span>
-                    <Button type="button" variant="outline" size="sm" onClick={handleAddSkill}>Add Skill</Button>
+                  <div className="flex items-center space-x-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-100">
+                    <div className="flex items-center space-x-2 flex-1">
+                      <Plus className="h-4 w-4 text-blue-600" />
+                      <input
+                        className="border rounded px-3 py-2 flex-1 bg-white"
+                        value={newSkill.name}
+                        onChange={e => setNewSkill({ ...newSkill, name: e.target.value })}
+                        placeholder="Add new skill"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2">
+                        <Star className="h-4 w-4 text-yellow-500" />
+                        <Slider
+                          min={1}
+                          max={5}
+                          step={1}
+                          value={[newSkill.expertiseLevel]}
+                          onValueChange={([val]) => setNewSkill({ ...newSkill, expertiseLevel: val })}
+                          className="w-24"
+                        />
+                      </div>
+                      <span className="w-20 text-center text-sm font-medium text-gray-700">
+                        {["Beginner", "", "Intermediate", "", "Expert"][newSkill.expertiseLevel-1]}
+                      </span>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleAddSkill}
+                        className="flex items-center space-x-1"
+                        disabled={!newSkill.name.trim()}
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add Skill</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1256,16 +1556,27 @@ export default function CandidateProfile() {
 
             <div className="flex justify-end gap-2">
               {isProfileComplete({ ...profileQueryData, email: user?.email }) && (
-                <Button type="button" variant="outline" onClick={() => { setIsEditing(false); setError(""); }}>
-                  Cancel
+                <Button type="button" variant="outline" onClick={() => { setIsEditing(false); setError(""); }} className="flex items-center space-x-2">
+                  <X className="h-4 w-4" />
+                  <span>Cancel</span>
                 </Button>
               )}
               <Button 
                 type="submit" 
                 disabled={updateProfileMutation.isPending || !isProfileComplete({ ...profileQueryData, email: user?.email })}
-                className="px-8"
+                className="px-8 flex items-center space-x-2"
               >
-                {updateProfileMutation.isPending ? "Saving..." : "Save Profile"}
+                {updateProfileMutation.isPending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    <span>Save Profile</span>
+                  </>
+                )}
               </Button>
             </div>
           </form>
