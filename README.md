@@ -1,10 +1,10 @@
-# NASTP HRMS - TalentTrackPro
+# NASTP Recruitement Portal - AI-Powered Recruitement Portal (Custom Built for NASTP)
 
-A comprehensive Human Resource Management System (HRMS) built for NASTP recruitment portal. This full-stack application provides a modern, user-friendly interface for managing job applications, candidate profiles, and recruitment workflows with advanced AI-powered features.
+A Custom AI-Powered Human Resource Management (HRMS) + Applicant Tracking System (ATS) built for NASTP . This full-stack application provides a modern, user-friendly interface for managing job applications, candidate profiles, and recruitment workflows with advanced AI-powered features. You can clone it and use it for yourself, just make sure to remove the NASTP brandings. Open to contribution and improvement.
 
 ## 🚀 Project Overview
 
-**NASTP HRMS** is a recruitment portal that streamlines the hiring process with features for both administrators and candidates:
+**NASTP Reccruitement Portal** is a AI-Powered Recruitment Portal that streamlines the hiring process with features for both administrators and candidates with AI automations and assistance:
 
 - **Admin Features**: Job management, candidate pipeline, email templates, analytics dashboard, AI-powered resume scoring, assessment management
 - **Candidate Features**: Profile management, job applications, resume uploads, skills management, assessment taking
@@ -22,7 +22,7 @@ A comprehensive Human Resource Management System (HRMS) built for NASTP recruitm
 - **File Upload**: Multer for resume uploads with OCR support
 - **State Management**: TanStack Query for server state
 - **Routing**: Wouter for client-side routing
-- **AI Integration**: Groq API for intelligent features
+- **AI Integration**: Groq API, scipy, TensorFlow, Mistral-7B.
 
 ### Project Structure
 ```
@@ -60,7 +60,7 @@ NASTP_HRMS/
 
 ## 📋 Features
 
-### 🤖 AI-Powered Features
+### 🤖 AI-Powered Features/ AI-Automations:
 
 #### **Intelligent Resume Parsing**
 - **OCR Support**: Extract text from scanned PDFs and images
