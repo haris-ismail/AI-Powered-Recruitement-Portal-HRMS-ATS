@@ -89,24 +89,22 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div>
+            {/* CNIC, Name, Date of Birth, Email */}
             <div className="flex items-center space-x-2 mb-2">
               <Target className="h-4 w-4 text-gray-500" />
               <span className="font-semibold">CNIC:</span>
             </div>
             <div className="ml-6">{profile.cnic}</div>
-            
             <div className="flex items-center space-x-2 mb-2 mt-3">
               <User className="h-4 w-4 text-gray-500" />
               <span className="font-semibold">Name:</span>
             </div>
             <div className="ml-6">{profile.firstName} {profile.lastName}</div>
-            
             <div className="flex items-center space-x-2 mb-2 mt-3">
               <Calendar className="h-4 w-4 text-gray-500" />
               <span className="font-semibold">Date of Birth:</span>
             </div>
             <div className="ml-6">{profile.dateOfBirth}</div>
-            
             <div className="flex items-center space-x-2 mb-2 mt-3">
               <Mail className="h-4 w-4 text-gray-500" />
               <span className="font-semibold">Email:</span>
@@ -114,14 +112,46 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
             <div className="ml-6">{profile.email}</div>
           </div>
           <div>
+            {/* Address */}
             <div className="flex items-center space-x-2 mb-2">
               <MapPin className="h-4 w-4 text-gray-500" />
               <span className="font-semibold">Address:</span>
             </div>
             <div className="ml-6">
-              <div>{profile.apartment}, {profile.street}, {profile.area}</div>
-              <div>{profile.city}, {profile.province}, {profile.postalCode}</div>
+            <div>{profile.apartment}, {profile.street}, {profile.area}</div>
+            <div>{profile.city}, {profile.province}, {profile.postalCode}</div>
+          </div>
+            {/* Social Links (moved here) */}
+          {(profile.linkedinUrl || profile.githubUrl) && (
+              <div className="mt-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <Globe className="h-4 w-4 text-gray-500" />
+                <span className="font-semibold">Social Links:</span>
+              </div>
+              <div className="ml-6 space-y-1">
+                {profile.linkedinUrl && (
+                  <div className="flex items-center space-x-2">
+                    <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                    </svg>
+                    <a href={profile.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                      LinkedIn Profile
+                    </a>
+                  </div>
+                )}
+                {profile.githubUrl && (
+                  <div className="flex items-center space-x-2">
+                    <svg className="h-4 w-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    <a href={profile.githubUrl} target="_blank" rel="noopener noreferrer" className="text-gray-800 hover:underline text-sm">
+                      GitHub Profile
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
+          )}
           </div>
         </div>
         
@@ -130,7 +160,7 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
             <div className="flex items-center space-x-2">
               <FileText className="h-4 w-4 text-gray-500" />
               <span className="font-semibold">Cover Letter:</span>
-            </div>
+        </div>
             {profile.motivationLetter && (
               <Dialog open={showCoverLetterModal} onOpenChange={setShowCoverLetterModal}>
                 <DialogTrigger asChild>
@@ -168,7 +198,7 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
           <div className="flex items-center space-x-2 mb-2">
             <GraduationCap className="h-4 w-4 text-gray-500" />
             <span className="font-semibold">Education:</span>
-          </div>
+        </div>
           <div className="ml-6">
             {educationList && educationList.length > 0 ? (
               <div className="space-y-2">
@@ -184,7 +214,7 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
                         {edu.obtainedMarks && edu.totalMarks && (
                           <>
                             <span>•</span>
-                            <span>{edu.obtainedMarks}/{edu.totalMarks}</span>
+                            <span>CGPA: {edu.obtainedMarks}/{edu.totalMarks}</span>
                           </>
                         )}
                       </div>
@@ -202,7 +232,7 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
           <div className="flex items-center space-x-2 mb-2">
             <Building className="h-4 w-4 text-gray-500" />
             <span className="font-semibold">Experience:</span>
-          </div>
+        </div>
           <div className="ml-6">
             {experienceList && experienceList.length > 0 ? (
               <div className="space-y-2">
@@ -222,6 +252,58 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
                           <span className="text-blue-600">{exp.skills}</span>
                         </div>
                       )}
+                      {exp.description && exp.description.length > 0 && (
+                        <div className="text-sm text-gray-600 mt-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="line-clamp-1">
+                                • {Array.isArray(exp.description) ? exp.description[0] : exp.description}
+                              </div>
+                            </div>
+                            {Array.isArray(exp.description) && exp.description.length > 1 && (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm" className="flex items-center space-x-1 ml-2">
+                                    <Eye className="h-3 w-3" />
+                                    <span>View Full</span>
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle className="flex items-center space-x-2">
+                                      <Workflow className="h-5 w-5" />
+                                      <span>Experience Details</span>
+                                    </DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-2">
+                                    <div className="font-medium text-gray-900">{exp.role}</div>
+                                    <div className="text-sm text-gray-600">{exp.company}</div>
+                                    <div className="text-xs text-gray-500">
+                                      {exp.fromDate} - {exp.toDate}
+                                    </div>
+                                    <div className="mt-3">
+                                      <div className="font-medium text-gray-900 mb-2">Description:</div>
+                                      <div className="space-y-1">
+                                        {Array.isArray(exp.description) ? exp.description.map((bullet: string, i: number) => (
+                                          <div key={i} className="flex items-start space-x-2">
+                                            <span className="text-gray-500 mt-1">•</span>
+                                            <span className="text-gray-700">{bullet}</span>
+                                          </div>
+                                        )) : (
+                                          <div className="flex items-start space-x-2">
+                                            <span className="text-gray-500 mt-1">•</span>
+                                            <span className="text-gray-700">{exp.description}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -232,13 +314,101 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
           </div>
         </div>
         
+        {/* Projects Section */}
+        <div className="mb-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <Layers className="h-4 w-4 text-gray-500" />
+            <span className="font-semibold">Projects:</span>
+          </div>
+          <div className="ml-6">
+            {profile.projects && profile.projects.length > 0 ? (
+              <div className="space-y-2">
+                {profile.projects.map((project: any, index: number) => (
+                  <div key={index} className="flex items-start space-x-2 p-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
+                    <Layers className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{project.title}</div>
+                      {project.description && project.description.length > 0 && (
+                        <div className="text-sm text-gray-600 mt-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="line-clamp-1">
+                                • {Array.isArray(project.description) ? project.description[0] : project.description}
+                              </div>
+                            </div>
+                            {Array.isArray(project.description) && project.description.length > 1 && (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm" className="flex items-center space-x-1 ml-2">
+                                    <Eye className="h-3 w-3" />
+                                    <span>View Full</span>
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle className="flex items-center space-x-2">
+                                      <Layers className="h-5 w-5" />
+                                      <span>Project Details</span>
+                                    </DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-2">
+                                    <div className="font-medium text-gray-900">{project.title}</div>
+                                    <div className="mt-3">
+                                      <div className="font-medium text-gray-900 mb-2">Description:</div>
+                                      <div className="space-y-1">
+                                        {Array.isArray(project.description) ? project.description.map((bullet: string, bulletIndex: number) => (
+                                          <div key={bulletIndex} className="flex items-start space-x-2">
+                                            <span className="text-gray-500 mt-1">•</span>
+                                            <span className="text-gray-700">{bullet}</span>
+                                          </div>
+                                        )) : (
+                                          <div className="flex items-start space-x-2">
+                                            <span className="text-gray-500 mt-1">•</span>
+                                            <span className="text-gray-700">{project.description}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {project.techStack && (
+                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                          <Code className="h-3 w-3" />
+                          <span className="text-purple-600">{project.techStack}</span>
+                        </div>
+                      )}
+                      {project.githubUrl && (
+                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                          <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                          </svg>
+                          <a href={project.githubUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                            View on GitHub
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="italic text-gray-400">No projects added</span>
+            )}
+          </div>
+        </div>
+        
         <div className="mb-4">
           <div className="flex items-center space-x-2 mb-2">
             <FileText className="h-4 w-4 text-gray-500" />
             <span className="font-semibold">Resume:</span>
           </div>
           <div className="ml-6">
-            {profile.resumeUrl ? (
+          {profile.resumeUrl ? (
               <a href={profile.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm flex items-center space-x-1">
                 <ExternalLink className="h-3 w-3" />
                 <span>View Resume</span>
@@ -246,33 +416,25 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
             ) : (
               <span className="italic text-gray-400">Not uploaded</span>
             )}
-          </div>
+        </div>
         </div>
         
         <div className="mb-4">
           <div className="flex items-center space-x-2 mb-2">
             <Zap className="h-4 w-4 text-gray-500" />
             <span className="font-semibold">Skills:</span>
-          </div>
+            </div>
           <div className="ml-6">
             {skills && skills.length > 0 ? (
-              <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {skills.map((skill: any, i: number) => (
-                  <div key={i} className="flex items-center space-x-3 p-2 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">
-                    <div className="flex items-center space-x-2 flex-1">
-                      <Code className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium text-gray-900 min-w-[120px]">{skill.name}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Slider min={1} max={5} step={1} value={[skill.expertiseLevel]} disabled className="w-24" />
-                      <div className="flex items-center space-x-1">
-                        <Star className="h-3 w-3 text-yellow-400" />
-                        <span className="text-xs font-medium text-gray-700 min-w-[80px] text-center">
-                          {["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  <div key={i} className="flex items-center space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 px-3 py-2 rounded-lg border border-blue-100">
+                    <Code className="h-4 w-4 text-blue-500" />
+                    <span className="font-medium text-gray-900">{skill.name}</span>
+                    <span className="text-xs text-blue-600 font-medium">
+                      ({["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]})
+                    </span>
+        </div>
                 ))}
               </div>
             ) : (
@@ -315,7 +477,10 @@ export default function CandidateProfile() {
     motivationLetter: "",
     resumeUrl: "",
     profilePicture: "",
-    resumeText: ""
+    resumeText: "",
+    linkedinUrl: "",
+    githubUrl: "",
+    projects: []
   });
 
   const [educationList, setEducationList] = useState([
@@ -337,7 +502,19 @@ export default function CandidateProfile() {
       role: "",
       fromDate: "",
       toDate: "",
-      skills: ""
+      skills: "",
+      description: [""] // Changed to array for bullet points
+    }
+  ]);
+
+  // Add state for projects
+  const [projectsList, setProjectsList] = useState([
+    {
+      id: undefined as number | undefined,
+      title: "",
+      description: [""], // Changed to array for bullet points
+      techStack: "",
+      githubUrl: ""
     }
   ]);
 
@@ -363,6 +540,8 @@ export default function CandidateProfile() {
   useEffect(() => {
     if (Array.isArray(skillsData)) setSkills(skillsData);
   }, [skillsData]);
+
+
   // Add mutations for skills
   const createSkillMutation = useMutation({
     mutationFn: async (skill: { name: string; expertiseLevel: number }) => {
@@ -398,31 +577,87 @@ export default function CandidateProfile() {
     deleteSkillMutation.mutate(id);
   };
 
+  // Add mutations for projects
+  const createProjectMutation = useMutation({
+    mutationFn: async (project: { title: string; description: string; techStack?: string; githubUrl?: string }) => {
+      const response = await apiRequest("POST", "/api/projects", project);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    },
+  });
+  const updateProjectMutation = useMutation({
+    mutationFn: async ({ id, ...project }: { id: number; title: string; description: string; techStack?: string; githubUrl?: string }) => {
+      const response = await apiRequest("PUT", `/api/projects/${id}`, project);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    },
+  });
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/projects/${id}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    },
+  });
+
   useEffect(() => {
     if (profileQueryData) {
       // Always update education and experience lists
       setEducationList(profileQueryData.education || []);
-      setExperienceList(profileQueryData.experience || []);
+      
+      // Convert experience descriptions to arrays if they're not already
+      const processedExperience = (profileQueryData.experience || []).map((exp: any) => ({
+        ...exp,
+        description: Array.isArray(exp.description) ? exp.description : 
+                   (exp.description ? JSON.parse(exp.description) : [""])
+      }));
+      setExperienceList(processedExperience);
+      
+      // Convert project descriptions to arrays if they're not already
+      const processedProjects = (profileQueryData.projects || []).map((project: any) => ({
+        ...project,
+        description: Array.isArray(project.description) ? project.description : 
+                   (project.description ? JSON.parse(project.description) : [""])
+      }));
+      setProjectsList(processedProjects);
+      
       setResumeText(profileQueryData.resumeText || "");
       
       // Only update profile data if we're not currently editing
       // This prevents form data from being reset when education/experience is added
       if (!isEditing) {
+        // Extract only the fields that should be editable, excluding system fields
+        const {
+          id,
+          userId,
+          createdAt,
+          updatedAt,
+          ...editableFields
+        } = profileQueryData;
+        
         setProfileData({
-          cnic: profileQueryData.cnic || "",
-          firstName: profileQueryData.firstName || "",
-          lastName: profileQueryData.lastName || "",
-          dateOfBirth: profileQueryData.dateOfBirth || "",
-          apartment: profileQueryData.apartment || "",
-          street: profileQueryData.street || "",
-          area: profileQueryData.area || "",
-          city: profileQueryData.city || "",
-          province: profileQueryData.province || "",
-          postalCode: profileQueryData.postalCode || "",
-          motivationLetter: profileQueryData.motivationLetter || "",
-          resumeUrl: profileQueryData.resumeUrl || "",
-          profilePicture: profileQueryData.profilePicture || "",
-          resumeText: profileQueryData.resumeText || ""
+          cnic: editableFields.cnic || "",
+          firstName: editableFields.firstName || "",
+          lastName: editableFields.lastName || "",
+          dateOfBirth: editableFields.dateOfBirth || "",
+          apartment: editableFields.apartment || "",
+          street: editableFields.street || "",
+          area: editableFields.area || "",
+          city: editableFields.city || "",
+          province: editableFields.province || "",
+          postalCode: editableFields.postalCode || "",
+          motivationLetter: editableFields.motivationLetter || "",
+          resumeUrl: editableFields.resumeUrl || "",
+          profilePicture: editableFields.profilePicture || "",
+          resumeText: editableFields.resumeText || "",
+          linkedinUrl: editableFields.linkedinUrl || "",
+          githubUrl: editableFields.githubUrl || "",
+          projects: editableFields.projects || []
         });
       }
       
@@ -474,6 +709,17 @@ export default function CandidateProfile() {
     },
   });
 
+  const updateEducationMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; [key: string]: any }) => {
+      const response = await apiRequest("PUT", `/api/education/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      // Don't invalidate profile query immediately to prevent form reset
+      // The local state is updated in handleEducationSubmit instead
+    },
+  });
+
   const deleteEducationMutation = useMutation({
     mutationFn: async (id: number) => {
       await apiRequest("DELETE", `/api/education/${id}`, {});
@@ -487,6 +733,17 @@ export default function CandidateProfile() {
   const createExperienceMutation = useMutation({
     mutationFn: async (data: any) => {
       const response = await apiRequest("POST", "/api/experience", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      // Don't invalidate profile query immediately to prevent form reset
+      // The local state is updated in handleExperienceSubmit instead
+    },
+  });
+
+  const updateExperienceMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; [key: string]: any }) => {
+      const response = await apiRequest("PUT", `/api/experience/${id}`, data);
       return response.json();
     },
     onSuccess: () => {
@@ -605,10 +862,22 @@ export default function CandidateProfile() {
       return;
     }
     setError("");
+    
+    const dataToSend = { 
+        ...profileData, 
+        email: user.email,
+        projects: projectsList
+    };
+    
+    console.log('🔍 [FRONTEND] Sending profile data:', JSON.stringify(dataToSend, null, 2));
+    console.log('🔍 [FRONTEND] Data types:', Object.entries(dataToSend).map(([key, value]) => `${key}: ${typeof value}`));
+    
     try {
-      await updateProfileMutation.mutateAsync({ ...profileData, email: user.email });
+      await updateProfileMutation.mutateAsync(dataToSend);
       // setIsEditing(false) is now handled in the mutation's onSuccess callback
     } catch (err: any) {
+      console.error('❌ [FRONTEND] Profile update error:', err);
+      console.error('❌ [FRONTEND] Error response:', err?.response?.data);
       if (err?.response?.data?.message) {
         setError(err.response.data.message);
       } else {
@@ -621,7 +890,26 @@ export default function CandidateProfile() {
     try {
       if (education.id) {
         // Update existing education
-        return;
+        const updatedEducation = await updateEducationMutation.mutateAsync({
+          id: education.id,
+          degree: education.degree,
+          institution: education.institution,
+          fromDate: education.fromDate,
+          toDate: education.toDate,
+          totalMarks: education.totalMarks,
+          obtainedMarks: education.obtainedMarks
+        });
+        
+        // Update the local state with the updated education
+        const newEducationList = [...educationList];
+        newEducationList[index] = updatedEducation;
+        setEducationList(newEducationList);
+        
+        // Show success message
+        toast({
+          title: "Success",
+          description: "Education updated successfully",
+        });
       } else {
         // Create new education
         const createdEducation = await createEducationMutation.mutateAsync(education);
@@ -640,7 +928,7 @@ export default function CandidateProfile() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to add education",
+        description: error.message || "Failed to save education",
         variant: "destructive",
       });
     }
@@ -650,7 +938,26 @@ export default function CandidateProfile() {
     try {
       if (experience.id) {
         // Update existing experience
-        return;
+        const updatedExperience = await updateExperienceMutation.mutateAsync({
+          id: experience.id,
+          company: experience.company,
+          role: experience.role,
+          fromDate: experience.fromDate,
+          toDate: experience.toDate,
+          skills: experience.skills,
+          description: experience.description
+        });
+        
+        // Update the local state with the updated experience
+        const newExperienceList = [...experienceList];
+        newExperienceList[index] = updatedExperience;
+        setExperienceList(newExperienceList);
+        
+        // Show success message
+        toast({
+          title: "Success",
+          description: "Experience updated successfully",
+        });
       } else {
         // Create new experience
         const createdExperience = await createExperienceMutation.mutateAsync(experience);
@@ -669,7 +976,7 @@ export default function CandidateProfile() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to add experience",
+        description: error.message || "Failed to save experience",
         variant: "destructive",
       });
     }
@@ -702,7 +1009,8 @@ export default function CandidateProfile() {
       role: "",
       fromDate: "",
       toDate: "",
-      skills: ""
+      skills: "",
+      description: [""] // Changed to array for bullet points
     }]);
   };
 
@@ -712,6 +1020,50 @@ export default function CandidateProfile() {
       await deleteExperienceMutation.mutateAsync(experience.id);
     }
     setExperienceList(experienceList.filter((_, i) => i !== index));
+  };
+
+  const addProject = () => {
+    setProjectsList([...projectsList, {
+      id: undefined,
+      title: "",
+      description: [""], // Changed to array for bullet points
+      techStack: "",
+      githubUrl: ""
+    }]);
+  };
+
+  const removeProject = (index: number) => {
+    const project = projectsList[index];
+    if (project.id) {
+      deleteProjectMutation.mutate(project.id);
+    } else {
+      setProjectsList(projectsList.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleProjectSubmit = async (project: any, index: number) => {
+    if (!project.title || !project.description) {
+      return;
+    }
+
+    if (project.id) {
+      // Update existing project
+      updateProjectMutation.mutate({
+        id: project.id,
+        title: project.title,
+        description: project.description,
+        techStack: project.techStack,
+        githubUrl: project.githubUrl
+      });
+    } else {
+      // Create new project
+      createProjectMutation.mutate({
+        title: project.title,
+        description: project.description,
+        techStack: project.techStack,
+        githubUrl: project.githubUrl
+      });
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -735,6 +1087,36 @@ export default function CandidateProfile() {
   const handleLogout = async () => {
     await logout();
     window.location.href = "/login";
+  };
+
+  // Mutation for saving social links only
+  const updateSocialLinksMutation = useMutation({
+    mutationFn: async (data: { linkedinUrl: string; githubUrl: string }) => {
+      const response = await apiRequest('PUT', '/api/profile', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'Social links updated successfully',
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update social links',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Handler for saving social links
+  const handleSaveSocialLinks = () => {
+    updateSocialLinksMutation.mutate({
+      linkedinUrl: profileData.linkedinUrl,
+      githubUrl: profileData.githubUrl,
+    });
   };
 
   if (isLoading || updateProfileMutation.isPending) {
@@ -813,7 +1195,13 @@ export default function CandidateProfile() {
               <p className="text-gray-600">View and edit your profile information</p>
             </div>
             <ProfileCard 
-              profile={{ ...profileQueryData, email: user?.email }} 
+              profile={{ 
+                ...profileQueryData, 
+                email: user?.email,
+                projects: projectsList,
+                linkedinUrl: profileQueryData.linkedinUrl,
+                githubUrl: profileQueryData.githubUrl
+              }} 
               educationList={educationList} 
               experienceList={experienceList} 
               skills={skills}
@@ -910,12 +1298,12 @@ export default function CandidateProfile() {
                   )}
                   <div className="flex items-center space-x-2">
                     <Upload className="h-4 w-4 text-gray-500" />
-                    <input
-                      type="file"
-                      accept="image/png, image/jpeg, image/jpg"
-                      onChange={handleProfilePictureUpload}
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg, image/jpg"
+                    onChange={handleProfilePictureUpload}
                       className="text-sm"
-                    />
+                  />
                   </div>
                 </div>
               </CardContent>
@@ -1078,6 +1466,48 @@ export default function CandidateProfile() {
               </CardContent>
             </Card>
 
+            {/* Social Links */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Globe className="h-5 w-5" />
+                  <span>Social Links</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label htmlFor="linkedinUrl" className="flex items-center space-x-2">
+                    <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                    </svg>
+                    <span>LinkedIn URL</span>
+                  </Label>
+                  <Input
+                    id="linkedinUrl"
+                    type="url"
+                    value={profileData.linkedinUrl}
+                    onChange={e => setProfileData({ ...profileData, linkedinUrl: e.target.value })}
+                    placeholder="https://linkedin.com/in/yourprofile"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="githubUrl" className="flex items-center space-x-2">
+                    <svg className="h-4 w-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    <span>GitHub URL</span>
+                  </Label>
+                  <Input
+                    id="githubUrl"
+                    type="url"
+                    value={profileData.githubUrl}
+                    onChange={e => setProfileData({ ...profileData, githubUrl: e.target.value })}
+                    placeholder="https://github.com/yourusername"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Education */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -1206,16 +1636,15 @@ export default function CandidateProfile() {
                         <Trash2 className="h-4 w-4" />
                         <span>Remove</span>
                       </Button>
-                      {!education.id ? (
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           onClick={() => handleEducationSubmit(education, index)}
-                          disabled={createEducationMutation.isPending}
+                        disabled={education.id ? updateEducationMutation.isPending : createEducationMutation.isPending}
                           className="flex items-center space-x-1"
                         >
-                          {createEducationMutation.isPending ? (
+                        {(education.id ? updateEducationMutation.isPending : createEducationMutation.isPending) ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
                               <span>Saving...</span>
@@ -1227,12 +1656,6 @@ export default function CandidateProfile() {
                             </>
                           )}
                         </Button>
-                      ) : (
-                        <div className="flex items-center text-green-600 text-sm">
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Saved
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -1339,6 +1762,68 @@ export default function CandidateProfile() {
                           placeholder="React, JavaScript, HTML, CSS"
                         />
                       </div>
+                      <div className="md:col-span-2">
+                        <Label htmlFor={`description-${index}`} className="flex items-center space-x-2">
+                          <FileText className="h-4 w-4" />
+                          <span>Description (Bullet Points)</span>
+                        </Label>
+                        <div className="space-y-2">
+                          {(Array.isArray(experience.description) ? experience.description : [""]).map((bullet: string, bulletIndex: number) => (
+                            <div key={bulletIndex} className="flex items-center space-x-2">
+                              <span className="text-gray-500 text-sm">•</span>
+                              <Input
+                                value={bullet}
+                                onChange={(e) => {
+                                  const newExperience = [...experienceList];
+                                  if (!Array.isArray(newExperience[index].description)) {
+                                    newExperience[index].description = [""];
+                                  }
+                                  newExperience[index].description[bulletIndex] = e.target.value;
+                                  setExperienceList(newExperience);
+                                }}
+                                placeholder="Enter bullet point..."
+                                className="flex-1"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newExperience = [...experienceList];
+                                  if (!Array.isArray(newExperience[index].description)) {
+                                    newExperience[index].description = [""];
+                                  }
+                                  newExperience[index].description.splice(bulletIndex, 1);
+                                  if (newExperience[index].description.length === 0) {
+                                    newExperience[index].description = [""];
+                                  }
+                                  setExperienceList(newExperience);
+                                }}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newExperience = [...experienceList];
+                              if (!Array.isArray(newExperience[index].description)) {
+                                newExperience[index].description = [""];
+                              }
+                              newExperience[index].description.push("");
+                              setExperienceList(newExperience);
+                            }}
+                            className="flex items-center space-x-1"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Add Bullet Point</span>
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200">
                       <Button
@@ -1351,16 +1836,15 @@ export default function CandidateProfile() {
                         <Trash2 className="h-4 w-4" />
                         <span>Remove</span>
                       </Button>
-                      {!experience.id ? (
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           onClick={() => handleExperienceSubmit(experience, index)}
-                          disabled={createExperienceMutation.isPending}
+                        disabled={experience.id ? updateExperienceMutation.isPending : createExperienceMutation.isPending}
                           className="flex items-center space-x-1"
                         >
-                          {createExperienceMutation.isPending ? (
+                        {(experience.id ? updateExperienceMutation.isPending : createExperienceMutation.isPending) ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
                               <span>Saving...</span>
@@ -1372,13 +1856,159 @@ export default function CandidateProfile() {
                             </>
                           )}
                         </Button>
-                      ) : (
-                        <div className="flex items-center text-green-600 text-sm">
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Saved
-                        </div>
-                      )}
                     </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Projects */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <Layers className="h-5 w-5" />
+                  <span>Projects</span>
+                </CardTitle>
+                <Button type="button" variant="outline" onClick={addProject} className="flex items-center space-x-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Add Project</span>
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {projectsList.map((project, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-purple-50 to-pink-50">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Layers className="h-5 w-5 text-purple-600" />
+                      <span className="font-medium text-gray-900">Project #{index + 1}</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <Label htmlFor={`projectTitle-${index}`} className="flex items-center space-x-2">
+                          <Layers className="h-4 w-4" />
+                          <span>Project Title</span>
+                        </Label>
+                        <Input
+                          id={`projectTitle-${index}`}
+                          value={project.title}
+                          onChange={(e) => {
+                            const newProjects = [...projectsList];
+                            newProjects[index].title = e.target.value;
+                            setProjectsList(newProjects);
+                          }}
+                          placeholder="E-commerce Website"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label htmlFor={`projectDescription-${index}`} className="flex items-center space-x-2">
+                          <FileText className="h-4 w-4" />
+                          <span>Description (Bullet Points)</span>
+                        </Label>
+                        <div className="space-y-2">
+                          {project.description.map((bullet: string, bulletIndex: number) => (
+                            <div key={bulletIndex} className="flex items-center space-x-2">
+                              <span className="text-gray-500 text-sm">•</span>
+                              <Input
+                                value={bullet}
+                          onChange={(e) => {
+                            const newProjects = [...projectsList];
+                                  newProjects[index].description[bulletIndex] = e.target.value;
+                            setProjectsList(newProjects);
+                          }}
+                                placeholder="Enter bullet point..."
+                                className="flex-1"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newProjects = [...projectsList];
+                                  newProjects[index].description.splice(bulletIndex, 1);
+                                  if (newProjects[index].description.length === 0) {
+                                    newProjects[index].description = [""];
+                                  }
+                                  setProjectsList(newProjects);
+                                }}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newProjects = [...projectsList];
+                              newProjects[index].description.push("");
+                              setProjectsList(newProjects);
+                            }}
+                            className="flex items-center space-x-1"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Add Bullet Point</span>
+                          </Button>
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor={`projectTechStack-${index}`} className="flex items-center space-x-2">
+                          <Code className="h-4 w-4" />
+                          <span>Tech Stack</span>
+                        </Label>
+                        <Input
+                          id={`projectTechStack-${index}`}
+                          value={project.techStack}
+                          onChange={(e) => {
+                            const newProjects = [...projectsList];
+                            newProjects[index].techStack = e.target.value;
+                            setProjectsList(newProjects);
+                          }}
+                          placeholder="React, Node.js, MongoDB"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`projectGithubUrl-${index}`} className="flex items-center space-x-2">
+                          <svg className="h-4 w-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                          </svg>
+                          <span>GitHub URL</span>
+                        </Label>
+                        <Input
+                          id={`projectGithubUrl-${index}`}
+                          type="url"
+                          value={project.githubUrl}
+                          onChange={(e) => {
+                            const newProjects = [...projectsList];
+                            newProjects[index].githubUrl = e.target.value;
+                            setProjectsList(newProjects);
+                          }}
+                          placeholder="https://github.com/username/project"
+                        />
+                      </div>
+                    </div>
+                                            <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeProject(index)}
+                            className="text-red-600 hover:text-red-700 flex items-center space-x-1"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span>Remove</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => handleProjectSubmit(project, index)}
+                            disabled={!project.title || !project.description}
+                            className="flex items-center space-x-1"
+                          >
+                            <Save className="h-4 w-4" />
+                            <span>Save</span>
+                          </Button>
+                        </div>
                   </div>
                 ))}
               </CardContent>
@@ -1477,22 +2107,22 @@ export default function CandidateProfile() {
                     <div key={skill.id} className="flex items-center space-x-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
                       <div className="flex items-center space-x-2 flex-1">
                         <Code className="h-4 w-4 text-purple-600" />
-                        <input
+                      <input
                           className="border rounded px-3 py-2 flex-1 bg-white"
-                          value={skill.name}
-                          onChange={e => handleUpdateSkill(skill.id, { name: e.target.value, expertiseLevel: skill.expertiseLevel })}
+                        value={skill.name}
+                        onChange={e => handleUpdateSkill(skill.id, { name: e.target.value, expertiseLevel: skill.expertiseLevel })}
                           placeholder="Skill name"
-                        />
+                      />
                       </div>
                       <div className="flex items-center space-x-3">
                         <div className="flex items-center space-x-2">
                           <Star className="h-4 w-4 text-yellow-500" />
-                          <Slider
-                            min={1}
-                            max={5}
-                            step={1}
-                            value={[skill.expertiseLevel]}
-                            onValueChange={([val]) => handleUpdateSkill(skill.id, { name: skill.name, expertiseLevel: val })}
+                      <Slider
+                        min={1}
+                        max={5}
+                        step={1}
+                        value={[skill.expertiseLevel]}
+                        onValueChange={([val]) => handleUpdateSkill(skill.id, { name: skill.name, expertiseLevel: val })}
                             className="w-24"
                           />
                         </div>
@@ -1515,22 +2145,22 @@ export default function CandidateProfile() {
                   <div className="flex items-center space-x-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-100">
                     <div className="flex items-center space-x-2 flex-1">
                       <Plus className="h-4 w-4 text-blue-600" />
-                      <input
+                    <input
                         className="border rounded px-3 py-2 flex-1 bg-white"
-                        value={newSkill.name}
-                        onChange={e => setNewSkill({ ...newSkill, name: e.target.value })}
+                      value={newSkill.name}
+                      onChange={e => setNewSkill({ ...newSkill, name: e.target.value })}
                         placeholder="Add new skill"
-                      />
+                    />
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="flex items-center space-x-2">
                         <Star className="h-4 w-4 text-yellow-500" />
-                        <Slider
-                          min={1}
-                          max={5}
-                          step={1}
-                          value={[newSkill.expertiseLevel]}
-                          onValueChange={([val]) => setNewSkill({ ...newSkill, expertiseLevel: val })}
+                    <Slider
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={[newSkill.expertiseLevel]}
+                      onValueChange={([val]) => setNewSkill({ ...newSkill, expertiseLevel: val })}
                           className="w-24"
                         />
                       </div>

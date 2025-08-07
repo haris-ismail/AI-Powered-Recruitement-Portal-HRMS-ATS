@@ -73,7 +73,8 @@ CREATE TABLE "experience" (
 	"role" text NOT NULL,
 	"from_date" text NOT NULL,
 	"to_date" text NOT NULL,
-	"skills" text NOT NULL
+	"skills" text NOT NULL,
+	"description" json NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "job_templates" (

@@ -28,6 +28,8 @@ export const candidates = pgTable("candidates", {
   resumeUrl: text("resume_url"),
   motivationLetter: text("motivation_letter"),
   resumeText: text("resume_text"), // Extracted resume text
+  linkedinUrl: text("linkedin_url"), // Added LinkedIn URL
+  githubUrl: text("github_url"), // Added GitHub URL
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -51,6 +53,7 @@ export const experience = pgTable("experience", {
   fromDate: text("from_date").notNull(),
   toDate: text("to_date").notNull(),
   skills: text("skills").notNull(),
+  description: json("description"), // JSON array for bullet points
 });
 
 export const jobTemplates = pgTable("job_templates", {
@@ -131,6 +134,18 @@ export const skills = pgTable("skills", {
   candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
   name: text("name").notNull(),
   expertiseLevel: integer("expertise_level").notNull(), // 1 (beginner) to 5 (expert)
+});
+
+// Projects table
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
+  title: text("title").notNull(),
+  description: json("description"), // JSON array for bullet points
+  techStack: text("tech_stack"),
+  githubUrl: text("github_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Assessment-related tables
@@ -249,6 +264,7 @@ export const candidatesRelations = relations(candidates, ({ one, many }) => ({
   experience: many(experience),
   applications: many(applications),
   skills: many(skills), // Add skills relation
+  projects: many(projects), // Add projects relation
 }));
 
 export const educationRelations = relations(education, ({ one }) => ({
@@ -313,6 +329,13 @@ export const skillsRelations = relations(skills, ({ one }) => ({
   }),
 }));
 
+export const projectsRelations = relations(projects, ({ one }) => ({
+  candidate: one(candidates, {
+    fields: [projects.candidateId],
+    references: [candidates.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -322,6 +345,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const insertCandidateSchema = createInsertSchema(candidates).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 }).extend({
   cnic: z.string().length(14, 'CNIC must be exactly 14 digits').regex(/^\d{14}$/, 'CNIC must be 14 digits'),
   profilePicture: z.string().optional(),
@@ -372,6 +396,12 @@ export const insertSkillSchema = createInsertSchema(skills).omit({
   id: true,
 });
 
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Search-related schemas and types
 export const insertSearchQuerySchema = createInsertSchema(searchQueries).omit({
   id: true,
@@ -401,6 +431,8 @@ export type CandidateReview = typeof candidateReviews.$inferSelect;
 export type InsertCandidateReview = z.infer<typeof insertCandidateReviewSchema>;
 export type Skill = typeof skills.$inferSelect;
 export type InsertSkill = z.infer<typeof insertSkillSchema>;
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type SearchQuery = typeof searchQueries.$inferSelect;
 export type InsertSearchQuery = z.infer<typeof insertSearchQuerySchema>;
 export type Offer = typeof offers.$inferSelect;

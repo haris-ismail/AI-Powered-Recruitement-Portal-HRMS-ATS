@@ -1,12 +1,12 @@
 import { 
-  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, candidateNotes, candidateReviews, skills,
+  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, candidateNotes, candidateReviews, skills, projects,
   type User, type InsertUser, type Candidate, type InsertCandidate,
   type Education, type InsertEducation, type Experience, type InsertExperience,
   type JobTemplate, type InsertJobTemplate, type Job, type InsertJob,
   type Application, type InsertApplication, type EmailTemplate, type InsertEmailTemplate,
   type CandidateNote, type InsertCandidateNote,
   type CandidateReview, type InsertCandidateReview,
-  type Skill, type InsertSkill,
+  type Skill, type InsertSkill, type Project, type InsertProject,
   assessmentCategories, assessmentTemplates, assessmentQuestions, jobAssessments, assessmentAttempts,
   assessmentAnswers, searchQueries, type SearchQuery, type InsertSearchQuery, type SearchFilters, type SearchResult,
   offers, jobCosts, type InsertOffer, type Offer, type InsertJobCost, type JobCost
@@ -64,6 +64,10 @@ export interface IStorage {
   createSkill(skill: InsertSkill): Promise<Skill>;
   updateSkill(id: number, skill: Partial<InsertSkill>): Promise<Skill>;
   deleteSkill(id: number): Promise<void>;
+  getCandidateProjects(candidateId: number): Promise<any[]>;
+  createProject(project: any): Promise<any>;
+  updateProject(id: number, project: any, candidateId: number): Promise<any>;
+  deleteProject(id: number, candidateId: number): Promise<void>;
   saveAssessmentAnswer(attemptId: number, questionId: number, answer: any): Promise<void>;
   getAssessmentCategories(): Promise<any[]>;
   createAssessmentCategory(data: any): Promise<any>;
@@ -265,10 +269,40 @@ export class DatabaseStorage implements IStorage {
     if (!candidate) return null;
     const educationList = await db.select().from(education).where(eq(education.candidateId, candidateId));
     const experienceList = await db.select().from(experience).where(eq(experience.candidateId, candidateId));
+    const projectsList = await db.select().from(projects).where(eq(projects.candidateId, candidateId));
+    
+    // Convert description fields from JSON to arrays for frontend
+    const processedExperienceList = experienceList.map(exp => ({
+      ...exp,
+      description: exp.description && typeof exp.description === 'string' 
+        ? (() => {
+            try {
+              return JSON.parse(exp.description);
+            } catch (e) {
+              return [exp.description];
+            }
+          })()
+        : (Array.isArray(exp.description) ? exp.description : [""])
+    }));
+    
+    const processedProjectsList = projectsList.map(project => ({
+      ...project,
+      description: project.description && typeof project.description === 'string' 
+        ? (() => {
+            try {
+              return JSON.parse(project.description);
+            } catch (e) {
+              return [project.description];
+            }
+          })()
+        : (Array.isArray(project.description) ? project.description : [""])
+    }));
+    
     return { 
       ...candidate, 
       education: educationList, 
-      experience: experienceList,
+      experience: processedExperienceList,
+      projects: processedProjectsList,
       resumeText: candidate.resumeText // Ensure resumeText is included
     };
   }
@@ -335,6 +369,27 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSkill(id: number): Promise<void> {
     await db.delete(skills).where(eq(skills.id, id));
+  }
+
+  async getCandidateProjects(candidateId: number): Promise<any[]> {
+    return await db.select().from(projects).where(eq(projects.candidateId, candidateId));
+  }
+
+  async createProject(projectData: any): Promise<any> {
+    const [project] = await db.insert(projects).values(projectData).returning();
+    return project;
+  }
+
+  async updateProject(id: number, projectData: any, candidateId: number): Promise<any> {
+    const [project] = await db.update(projects)
+      .set({ ...projectData, updatedAt: new Date() })
+      .where(and(eq(projects.id, id), eq(projects.candidateId, candidateId)))
+      .returning();
+    return project;
+  }
+
+  async deleteProject(id: number, candidateId: number): Promise<void> {
+    await db.delete(projects).where(and(eq(projects.id, id), eq(projects.candidateId, candidateId)));
   }
 
   async saveAssessmentAnswer(attemptId: number, questionId: number, answer: any): Promise<void> {

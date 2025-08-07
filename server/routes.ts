@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
-import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema, type SearchFilters, candidates } from "@shared/schema";
+import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema, insertProjectSchema, type SearchFilters, candidates } from "@shared/schema";
 import { z } from "zod";
 import { spawn } from "child_process";
 import { eq, sql } from "drizzle-orm";
@@ -436,26 +436,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/profile', authenticateToken, async (req: any, res) => {
     try {
+      console.log('🔍 [PROFILE UPDATE] Starting profile update for user:', req.user.id);
+      console.log('📥 [PROFILE UPDATE] Raw request body:', JSON.stringify(req.body, null, 2));
+      
       const candidate = await storage.getCandidate(req.user.id);
       if (!candidate) {
+        console.log('❌ [PROFILE UPDATE] Profile not found for user:', req.user.id);
         return res.status(404).json({ message: 'Profile not found' });
       }
 
-      const profileData = insertCandidateSchema.partial().parse(req.body);
+      console.log('✅ [PROFILE UPDATE] Found existing candidate:', {
+        id: candidate.id,
+        currentUpdatedAt: candidate.updatedAt,
+        type: typeof candidate.updatedAt
+      });
+
+      // Clean the request body to remove any problematic fields
+      const cleanedBody = { ...req.body };
+      
+      // Remove updatedAt if it's being sent as a string
+      if (cleanedBody.updatedAt) {
+        console.log('⚠️ [PROFILE UPDATE] Removing updatedAt from request body:', {
+          value: cleanedBody.updatedAt,
+          type: typeof cleanedBody.updatedAt
+        });
+        delete cleanedBody.updatedAt;
+      }
+      
+      // Remove createdAt if it's being sent
+      if (cleanedBody.createdAt) {
+        console.log('⚠️ [PROFILE UPDATE] Removing createdAt from request body');
+        delete cleanedBody.createdAt;
+      }
+      
+      // Remove id if it's being sent
+      if (cleanedBody.id) {
+        console.log('⚠️ [PROFILE UPDATE] Removing id from request body');
+        delete cleanedBody.id;
+      }
+
+      console.log('🧹 [PROFILE UPDATE] Cleaned request body:', JSON.stringify(cleanedBody, null, 2));
+
+      // Map camelCase to snake_case for social links
+      if (cleanedBody.linkedinUrl) {
+        cleanedBody.linkedin_url = cleanedBody.linkedinUrl;
+        delete cleanedBody.linkedinUrl;
+      }
+      if (cleanedBody.githubUrl) {
+        cleanedBody.github_url = cleanedBody.githubUrl;
+        delete cleanedBody.githubUrl;
+      }
+
+      const profileData = insertCandidateSchema.partial().parse(cleanedBody);
+      console.log('✅ [PROFILE UPDATE] Schema validation passed:', JSON.stringify(profileData, null, 2));
+      
       // If CNIC is being updated, check uniqueness
       if (profileData.cnic && profileData.cnic !== candidate.cnic) {
+        console.log('🔍 [PROFILE UPDATE] Checking CNIC uniqueness:', profileData.cnic);
         const existingCnic = await storage.getCandidateByCnic(profileData.cnic);
         if (existingCnic) {
+          console.log('❌ [PROFILE UPDATE] CNIC already exists:', profileData.cnic);
           return res.status(400).json({ message: 'CNIC already exists' });
         }
       }
+      
+      console.log('📞 [PROFILE UPDATE] Calling storage.updateCandidate with data:', JSON.stringify(profileData, null, 2));
       const updatedCandidate = await storage.updateCandidate(candidate.id, profileData);
+      
+      console.log('✅ [PROFILE UPDATE] Profile updated successfully:', {
+        id: updatedCandidate.id,
+        updatedAt: updatedCandidate.updatedAt,
+        type: typeof updatedCandidate.updatedAt
+      });
 
       res.json(updatedCandidate);
     } catch (error: unknown) {
+      console.error('❌ [PROFILE UPDATE] Error occurred:', error);
+      
       if (error instanceof z.ZodError) {
+        console.error('🔍 [PROFILE UPDATE] Zod validation errors:', JSON.stringify(error.errors, null, 2));
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
+      
+      console.error('💥 [PROFILE UPDATE] Unexpected error:', error);
       res.status(500).json({ message: 'Server error' });
     }
   });
@@ -492,6 +555,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/education/:id', authenticateToken, async (req: any, res) => {
+    try {
+      const educationId = parseInt(req.params.id);
+      const educationData = insertEducationSchema.partial().parse(req.body);
+      
+      const updatedEducation = await storage.updateEducation(educationId, educationData);
+      res.json(updatedEducation);
+    } catch (error: unknown) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
   // Experience routes
   app.post('/api/experience', authenticateToken, async (req: any, res) => {
     try {
@@ -505,7 +583,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         candidateId: candidate.id
       });
 
+      // Ensure description is handled as JSON array
+      if (experienceData.description && !Array.isArray(experienceData.description)) {
+        experienceData.description = [experienceData.description];
+      }
+
       const experience = await storage.createExperience(experienceData);
+      
+      // Convert description back to array for frontend
+      if (experience.description && typeof experience.description === 'string') {
+        try {
+          experience.description = JSON.parse(experience.description);
+        } catch (e) {
+          experience.description = [experience.description];
+        }
+      }
+      
       res.status(201).json(experience);
     } catch (error: unknown) {
       if (error instanceof z.ZodError) {
@@ -520,6 +613,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteExperience(parseInt(req.params.id));
       res.status(204).send();
     } catch (error: unknown) {
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.put('/api/experience/:id', authenticateToken, async (req: any, res) => {
+    try {
+      const experienceId = parseInt(req.params.id);
+      const experienceData = insertExperienceSchema.partial().parse(req.body);
+      
+      // Ensure description is handled as JSON array
+      if (experienceData.description && !Array.isArray(experienceData.description)) {
+        experienceData.description = [experienceData.description];
+      }
+      
+      const updatedExperience = await storage.updateExperience(experienceId, experienceData);
+      
+      // Convert description back to array for frontend
+      if (updatedExperience.description && typeof updatedExperience.description === 'string') {
+        try {
+          updatedExperience.description = JSON.parse(updatedExperience.description);
+        } catch (e) {
+          updatedExperience.description = [updatedExperience.description];
+        }
+      }
+      
+      res.json(updatedExperience);
+    } catch (error: unknown) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid input', errors: error.errors });
+      }
       res.status(500).json({ message: 'Server error' });
     }
   });
@@ -2809,6 +2932,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting skill:', error);
       res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  // Projects endpoints
+  app.get('/api/projects', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+
+      const projects = await storage.getCandidateProjects(candidate.id);
+      res.json(projects);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      res.status(500).json({ message: 'Failed to fetch projects' });
+    }
+  });
+
+  app.post('/api/projects', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+
+      const validatedData = insertProjectSchema.parse({
+        ...req.body,
+        candidateId: candidate.id
+      });
+
+      const project = await storage.createProject(validatedData);
+      
+      // Convert description back to array for frontend
+      if (project.description && typeof project.description === 'string') {
+        try {
+          project.description = JSON.parse(project.description);
+        } catch (e) {
+          project.description = [project.description];
+        }
+      }
+      
+      res.status(201).json(project);
+    } catch (error) {
+      console.error('Error creating project:', error);
+      res.status(500).json({ message: 'Failed to create project' });
+    }
+  });
+
+  app.put('/api/projects/:id', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const candidate = await storage.getCandidate(req.user.id);
+      
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+
+      const validatedData = insertProjectSchema.partial().parse(req.body);
+      const project = await storage.updateProject(projectId, validatedData, candidate.id);
+      
+      // Convert description back to array for frontend
+      if (project.description && typeof project.description === 'string') {
+        try {
+          project.description = JSON.parse(project.description);
+        } catch (e) {
+          project.description = [project.description];
+        }
+      }
+      
+      res.json(project);
+    } catch (error) {
+      console.error('Error updating project:', error);
+      res.status(500).json({ message: 'Failed to update project' });
+    }
+  });
+
+  app.delete('/api/projects/:id', authenticateToken, requireRole('candidate'), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const candidate = await storage.getCandidate(req.user.id);
+      
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+
+      await storage.deleteProject(projectId, candidate.id);
+      res.json({ message: 'Project deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      res.status(500).json({ message: 'Failed to delete project' });
     }
   });
 

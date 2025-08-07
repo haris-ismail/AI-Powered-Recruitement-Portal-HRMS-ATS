@@ -1,0 +1,1 @@
+ALTER TABLE "experience" ADD COLUMN "description" text; 
