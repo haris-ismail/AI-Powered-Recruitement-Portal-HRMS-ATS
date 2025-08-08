@@ -423,12 +423,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const education = await storage.getCandidateEducation(candidate.id);
       const experience = await storage.getCandidateExperience(candidate.id);
+      const projects = await storage.getCandidateProjects(candidate.id);
 
-      res.json({
+      console.log('🔍 [PROFILE GET] Raw projects from database:', JSON.stringify(projects, null, 2));
+
+      // Process projects description field (convert from JSON to array)
+      const processedProjects = projects.map(project => ({
+        ...project,
+        description: project.description && typeof project.description === 'string' 
+          ? (() => {
+              try {
+                return JSON.parse(project.description);
+              } catch (e) {
+                return [project.description];
+              }
+            })()
+          : (Array.isArray(project.description) ? project.description : [""])
+      }));
+
+      console.log('🔍 [PROFILE GET] Processed projects:', JSON.stringify(processedProjects, null, 2));
+
+      // Map social links directly for frontend
+      const responseCandidate = {
         ...candidate,
+        linkedin: (candidate as any).linkedin ?? (candidate as any).linkedin_url,
+        github: (candidate as any).github ?? (candidate as any).github_url,
         education,
-        experience
-      });
+        experience,
+        projects: processedProjects
+      };
+
+      console.log('🔍 [PROFILE GET] Raw candidate data:', JSON.stringify(candidate, null, 2));
+      console.log('🔍 [PROFILE GET] Mapped response data:', JSON.stringify(responseCandidate, null, 2));
+      console.log('🔍 [PROFILE GET] Social links - linkedin:', (responseCandidate as any).linkedin, 'github:', (responseCandidate as any).github);
+      console.log('🔍 [PROFILE GET] Final response includes projects:', responseCandidate.projects ? 'YES' : 'NO', 'Projects count:', responseCandidate.projects?.length || 0);
+
+      res.json(responseCandidate);
     } catch (error: unknown) {
       res.status(500).json({ message: 'Server error' });
     }
@@ -476,20 +506,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log('🧹 [PROFILE UPDATE] Cleaned request body:', JSON.stringify(cleanedBody, null, 2));
+      console.log('🔍 [PROFILE UPDATE] Social links in request - linkedin:', cleanedBody.linkedin, 'github:', cleanedBody.github);
 
-      // Map camelCase to snake_case for social links
-      if (cleanedBody.linkedinUrl) {
-        cleanedBody.linkedin_url = cleanedBody.linkedinUrl;
-        delete cleanedBody.linkedinUrl;
-      }
-      if (cleanedBody.githubUrl) {
-        cleanedBody.github_url = cleanedBody.githubUrl;
-        delete cleanedBody.githubUrl;
-      }
-
-      const profileData = insertCandidateSchema.partial().parse(cleanedBody);
-      console.log('✅ [PROFILE UPDATE] Schema validation passed:', JSON.stringify(profileData, null, 2));
+      // Validate the data with schema (includes social links)
+      console.log('🔍 [PROFILE UPDATE] About to validate with schema. Input data keys:', Object.keys(cleanedBody));
+      console.log('🔍 [PROFILE UPDATE] Input data for validation:', JSON.stringify(cleanedBody, null, 2));
       
+      let validatedData: any;
+      try {
+        validatedData = insertCandidateSchema.partial().parse(cleanedBody);
+        console.log('✅ [PROFILE UPDATE] Schema validation passed:', JSON.stringify(validatedData, null, 2));
+        console.log('🔍 [PROFILE UPDATE] Validated data keys:', Object.keys(validatedData));
+      } catch (error) {
+        console.error('❌ [PROFILE UPDATE] Schema validation failed:', error);
+        if (error instanceof Error) {
+          console.error('❌ [PROFILE UPDATE] Error message:', error.message);
+        }
+        throw error;
+      }
+
+      // Normalize social links and handle empty strings
+      const profileData = { ...validatedData } as any;
+      console.log('🔍 [PROFILE UPDATE] Before normalization - linkedin:', profileData.linkedin, 'github:', profileData.github);
+      profileData.linkedin = (typeof profileData.linkedin === 'string' && profileData.linkedin.trim() !== '')
+        ? profileData.linkedin.trim()
+        : null;
+      profileData.github = (typeof profileData.github === 'string' && profileData.github.trim() !== '')
+        ? profileData.github.trim()
+        : null;
+      
+      console.log('🔍 [PROFILE UPDATE] Final data for database:', JSON.stringify(profileData, null, 2));
       // If CNIC is being updated, check uniqueness
       if (profileData.cnic && profileData.cnic !== candidate.cnic) {
         console.log('🔍 [PROFILE UPDATE] Checking CNIC uniqueness:', profileData.cnic);
@@ -503,13 +549,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('📞 [PROFILE UPDATE] Calling storage.updateCandidate with data:', JSON.stringify(profileData, null, 2));
       const updatedCandidate = await storage.updateCandidate(candidate.id, profileData);
       
-      console.log('✅ [PROFILE UPDATE] Profile updated successfully:', {
-        id: updatedCandidate.id,
-        updatedAt: updatedCandidate.updatedAt,
-        type: typeof updatedCandidate.updatedAt
-      });
-
-      res.json(updatedCandidate);
+      // Handle projects if they are included in the request
+      if (validatedData.projects) {
+        console.log('🔍 [PROFILE UPDATE] Processing projects:', JSON.stringify(validatedData.projects, null, 2));
+        
+        // Get existing projects for this candidate
+        const existingProjects = await storage.getCandidateProjects(candidate.id);
+        
+        // Process each project
+        for (const project of validatedData.projects) {
+          if (project.id) {
+            // Update existing project
+            await storage.updateProject(project.id, {
+              title: project.title,
+              description: project.description,
+              techStack: project.techStack,
+              githubUrl: project.githubUrl,
+              candidateId: candidate.id
+            }, candidate.id);
+          } else {
+            // Create new project
+            await storage.createProject({
+              title: project.title,
+              description: project.description,
+              techStack: project.techStack,
+              githubUrl: project.githubUrl,
+              candidateId: candidate.id
+            });
+          }
+        }
+        
+        // Delete projects that are no longer in the list
+        const projectIdsInRequest = validatedData.projects
+          .filter((p: any) => p.id)
+          .map((p: any) => p.id);
+        
+        for (const existingProject of existingProjects) {
+          if (!projectIdsInRequest.includes(existingProject.id)) {
+            await storage.deleteProject(existingProject.id, candidate.id);
+          }
+        }
+      }
+      
+      // Map social links directly for frontend
+      const responseCandidate = {
+        ...updatedCandidate,
+        linkedin: (updatedCandidate as any).linkedin ?? (updatedCandidate as any).linkedin_url,
+        github: (updatedCandidate as any).github ?? (updatedCandidate as any).github_url,
+      };
+      
+      res.json(responseCandidate);
     } catch (error: unknown) {
       console.error('❌ [PROFILE UPDATE] Error occurred:', error);
       

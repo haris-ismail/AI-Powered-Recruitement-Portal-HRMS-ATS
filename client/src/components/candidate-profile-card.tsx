@@ -25,8 +25,8 @@ interface CandidateProfileCardProps {
     city?: string;
     resumeUrl?: string;
     motivationLetter?: string;
-    linkedinUrl?: string;
-    githubUrl?: string;
+    linkedin?: string;
+    github?: string;
     education?: Array<{
       degree: string;
       institution: string;

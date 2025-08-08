@@ -1,6 +1,6 @@
 -- Add social links to candidates table
-ALTER TABLE candidates ADD COLUMN linkedin_url TEXT;
-ALTER TABLE candidates ADD COLUMN github_url TEXT;
+ALTER TABLE candidates ADD COLUMN linkedin TEXT;
+ALTER TABLE candidates ADD COLUMN github TEXT;
 
 -- Create projects table
 CREATE TABLE projects (
