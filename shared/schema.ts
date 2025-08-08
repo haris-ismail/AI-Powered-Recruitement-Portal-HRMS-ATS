@@ -28,8 +28,16 @@ export const candidates = pgTable("candidates", {
   resumeUrl: text("resume_url"),
   motivationLetter: text("motivation_letter"),
   resumeText: text("resume_text"), // Extracted resume text
+<<<<<<< Updated upstream
   linkedinUrl: text("linkedin_url"), // Added LinkedIn URL
   githubUrl: text("github_url"), // Added GitHub URL
+=======
+<<<<<<< Updated upstream
+=======
+  linkedin: text("linkedin"),
+  github: text("github"),
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -342,13 +350,39 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
+<<<<<<< Updated upstream
 export const insertCandidateSchema = createInsertSchema(candidates).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
+=======
+export const insertCandidateSchema = z.object({
+  userId: z.number().optional(),
+>>>>>>> Stashed changes
   cnic: z.string().length(14, 'CNIC must be exactly 14 digits').regex(/^\d{14}$/, 'CNIC must be 14 digits'),
   profilePicture: z.string().optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  apartment: z.string().optional(),
+  street: z.string().optional(),
+  area: z.string().optional(),
+  city: z.string().optional(),
+  province: z.string().optional(),
+  postalCode: z.string().optional(),
+  resumeUrl: z.string().optional(),
+  motivationLetter: z.string().optional(),
+  resumeText: z.string().optional(),
+  linkedin: z.string().optional(),
+  github: z.string().optional(),
+  projects: z.array(z.object({
+    id: z.number().optional(),
+    title: z.string(),
+    description: z.array(z.string()),
+    techStack: z.string().optional(),
+    githubUrl: z.string().optional(),
+  })).optional(),
 });
 
 export const insertEducationSchema = createInsertSchema(education).omit({

@@ -1,6 +1,11 @@
 -- Add social links to candidates table
+<<<<<<< Updated upstream
 ALTER TABLE candidates ADD COLUMN linkedin_url TEXT;
 ALTER TABLE candidates ADD COLUMN github_url TEXT;
+=======
+ALTER TABLE candidates ADD COLUMN linkedin TEXT;
+ALTER TABLE candidates ADD COLUMN github TEXT;
+>>>>>>> Stashed changes
 
 -- Create projects table
 CREATE TABLE projects (
