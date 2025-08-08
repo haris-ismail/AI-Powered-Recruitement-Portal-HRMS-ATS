@@ -1,6 +1,9 @@
 import { defineConfig } from "drizzle-kit";
 
-if (!process.env.DATABASE_URL) {
+// Use the correct database URL with the correct password
+const DATABASE_URL = process.env.DATABASE_URL || "postgresql://postgres:2162@localhost:5432/nastp_db";
+
+if (!DATABASE_URL) {
   throw new Error("DATABASE_URL, ensure the database is provisioned");
 }
 
@@ -9,6 +12,6 @@ export default defineConfig({
   schema: "./shared/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: DATABASE_URL,
   },
 });

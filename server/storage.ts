@@ -920,8 +920,10 @@ export class DatabaseStorage implements IStorage {
         console.log(`   📈 Total Score: ${score}`);
         console.log(`   📈 Max Possible Score: ${maxScore}`);
         console.log(`   📈 Score Percentage: ${maxScore > 0 ? ((score / maxScore) * 100).toFixed(2) : 0}%`);
-        console.log(`   🎯 Passing Score: ${template.passingScore}`);
-        console.log(`   ✅ Passed: ${score >= template.passingScore}`);
+        console.log(`   🎯 Passing Score: ${template.passingScore}%`);
+        const passingThreshold = (template.passingScore / 100) * maxScore;
+        console.log(`   🎯 Passing Threshold: ${passingThreshold} points`);
+        console.log(`   ✅ Passed: ${score >= passingThreshold}`);
         
         // Insert all answers
         if (answersToInsert.length > 0) {
@@ -939,9 +941,12 @@ export class DatabaseStorage implements IStorage {
         }
         
         // Update attempt with final results
-        const passed = score >= template.passingScore;
+        // Calculate passing threshold as percentage of max score
+        const passingThreshold = (template.passingScore / 100) * maxScore;
+        const passed = score >= passingThreshold;
         console.log(`\n📝 [UPDATING ATTEMPT] Updating attempt ${attemptId} with final results`);
         console.log(`   📊 Final Score: ${score}/${maxScore}`);
+        console.log(`   🎯 Passing Score: ${template.passingScore}% (${passingThreshold} points)`);
         console.log(`   🎯 Passed: ${passed}`);
         console.log(`   ⏰ Completion Time: ${now.toISOString()}`);
         

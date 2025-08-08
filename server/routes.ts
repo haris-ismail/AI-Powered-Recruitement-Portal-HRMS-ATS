@@ -662,37 +662,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const resumeUrl = `/uploads/${req.file.filename}`;
       const resumePath = req.file.path;
 
-      // Call Python script to extract resume text
+      // Call Python script to extract resume text (optional)
       let resumeText = '';
       try {
-        const python = spawn(getPythonCommand(), [
-          './server/resume_parser/extract_resume_text.py',
-          resumePath
-        ], {
-          env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
-        });
-        let output = '';
-        let errorOutput = '';
-        python.stdout.on('data', (data) => {
-          output += data.toString();
-        });
-        python.stderr.on('data', (data) => {
-          errorOutput += data.toString();
-        });
+        // Check if Python is available
+        const { spawn } = await import('child_process');
+        const python = spawn(getPythonCommand(), ['--version'], { stdio: 'pipe' });
+        
         await new Promise((resolve, reject) => {
           python.on('close', (code) => {
             if (code === 0) {
-              resumeText = output;
-              resolve(null);
+              // Python is available, proceed with text extraction
+              const extractPython = spawn(getPythonCommand(), [
+                './server/resume_parser/extract_resume_text.py',
+                resumePath
+              ], {
+                env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+              });
+              
+              let output = '';
+              let errorOutput = '';
+              extractPython.stdout.on('data', (data) => {
+                output += data.toString();
+              });
+              extractPython.stderr.on('data', (data) => {
+                errorOutput += data.toString();
+              });
+              
+              extractPython.on('close', (extractCode) => {
+                if (extractCode === 0) {
+                  resumeText = output;
+                  console.log('Resume text extracted successfully');
+                } else {
+                  console.error('Resume parsing error:', errorOutput);
+                  resumeText = '';
+                }
+                resolve(null);
+              });
             } else {
-              console.error('Resume parsing error:', errorOutput);
+              // Python not available, skip text extraction
+              console.log('Python not available, skipping resume text extraction');
               resumeText = '';
-              resolve(null); // Don't block upload on parsing error
+              resolve(null);
             }
           });
         });
       } catch (err) {
-        console.error('Failed to parse resume:', err);
+        console.error('Failed to check Python or parse resume:', err);
         resumeText = '';
       }
 
@@ -3145,38 +3161,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const resumePath = `./uploads/${candidate.resumeUrl.split('/').pop()}`;
       
-      // Call Python script to extract resume text
+      // Call Python script to extract resume text (optional)
       let resumeText = '';
       try {
+        // Check if Python is available
         const { spawn } = await import('child_process');
-        const python = spawn(getPythonCommand(), [
-          './server/resume_parser/extract_resume_text.py',
-          resumePath
-        ], {
-          env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
-        });
-        let output = '';
-        let errorOutput = '';
-        python.stdout.on('data', (data) => {
-          output += data.toString();
-        });
-        python.stderr.on('data', (data) => {
-          errorOutput += data.toString();
-        });
+        const python = spawn(getPythonCommand(), ['--version'], { stdio: 'pipe' });
+        
         await new Promise((resolve) => {
           python.on('close', (code) => {
             if (code === 0) {
-              resumeText = output;
-              resolve(null);
+              // Python is available, proceed with text extraction
+              const extractPython = spawn(getPythonCommand(), [
+                './server/resume_parser/extract_resume_text.py',
+                resumePath
+              ], {
+                env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+              });
+              
+              let output = '';
+              let errorOutput = '';
+              extractPython.stdout.on('data', (data) => {
+                output += data.toString();
+              });
+              extractPython.stderr.on('data', (data) => {
+                errorOutput += data.toString();
+              });
+              
+              extractPython.on('close', (extractCode) => {
+                if (extractCode === 0) {
+                  resumeText = output;
+                  console.log('Resume text extracted successfully');
+                } else {
+                  console.error('Resume parsing error:', errorOutput);
+                  resumeText = '';
+                }
+                resolve(null);
+              });
             } else {
-              console.error('Resume parsing error:', errorOutput);
+              // Python not available, return error
+              console.log('Python not available for resume text extraction');
               resumeText = '';
               resolve(null);
             }
           });
         });
       } catch (err) {
-        console.error('Failed to parse resume:', err);
+        console.error('Failed to check Python or parse resume:', err);
         resumeText = '';
       }
 
@@ -3216,36 +3247,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         try {
-          // Extract resume text using the existing Python script
+          // Check if Python is available first
           const { spawn } = await import('child_process');
-          const py = spawn(getPythonCommand(), ['server/resume_parser/extract_resume_text.py'], {
-            env: { ...process.env }
-          });
-          
-          let output = '';
-          let errorOutput = '';
-          
-          py.stdout.on('data', (data: any) => { output += data.toString(); });
-          py.stderr.on('data', (data: any) => { errorOutput += data.toString(); });
-          
-          const input = {
-            resume_url: profile.resumeUrl
-          };
-          
-          py.stdin.write(JSON.stringify(input));
-          py.stdin.end();
+          const pythonCheck = spawn(getPythonCommand(), ['--version'], { stdio: 'pipe' });
           
           await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              py.kill();
-              reject(new Error('Resume extraction timed out'));
-            }, 30000);
-            
-            py.on('close', (code) => {
-              clearTimeout(timeout);
-              if (code !== 0) {
-                reject(new Error(`Resume extraction failed with code ${code}`));
+            pythonCheck.on('close', (code) => {
+              if (code === 0) {
+                // Python is available, proceed with extraction
+                const py = spawn(getPythonCommand(), ['server/resume_parser/extract_resume_text.py'], {
+                  env: { ...process.env }
+                });
+                
+                let output = '';
+                let errorOutput = '';
+                
+                py.stdout.on('data', (data: any) => { output += data.toString(); });
+                py.stderr.on('data', (data: any) => { errorOutput += data.toString(); });
+                
+                const input = {
+                  resume_url: profile.resumeUrl
+                };
+                
+                py.stdin.write(JSON.stringify(input));
+                py.stdin.end();
+                
+                const timeout = setTimeout(() => {
+                  py.kill();
+                  reject(new Error('Resume extraction timed out'));
+                }, 30000);
+                
+                py.on('close', (code) => {
+                  clearTimeout(timeout);
+                  if (code !== 0) {
+                    reject(new Error(`Resume extraction failed with code ${code}`));
+                  } else {
+                    resolve(null);
+                  }
+                });
               } else {
+                // Python not available, skip extraction
+                console.log(`Python not available, skipping resume text extraction for candidate ${profile.id}`);
                 resolve(null);
               }
             });

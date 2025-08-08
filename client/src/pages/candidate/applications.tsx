@@ -154,7 +154,7 @@ export default function CandidateApplications() {
               attempts[assessment.jobId] = {
                 status: assessment.status || 'not_started',
                 score: assessment.score,
-                maxScore: assessment.template.passingScore,
+                maxScore: assessment.maxScore || assessment.template.passingScore, // Use actual maxScore if available, fallback to passingScore
                 progress: assessment.status === 'completed' ? 1 : 0
               };
         }

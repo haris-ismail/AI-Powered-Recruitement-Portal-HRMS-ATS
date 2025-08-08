@@ -217,10 +217,14 @@ export default function AssessmentResultsPage() {
               </div>
             </div>
             
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center mb-4">
               <Badge variant={result.passed ? "default" : "destructive"} className="text-lg px-4 py-2">
                 {result.passed ? "PASSED" : "FAILED"}
               </Badge>
+            </div>
+            <div className="text-center text-sm text-gray-600">
+              <p>Passing requirement: {Math.round((result.score / result.maxScore) * 100)}% achieved</p>
+              <p>Score: {result.score} out of {result.maxScore} points</p>
             </div>
           </CardContent>
         </Card>

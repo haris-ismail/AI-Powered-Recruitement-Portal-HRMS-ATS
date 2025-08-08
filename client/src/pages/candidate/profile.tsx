@@ -456,6 +456,8 @@ export default function CandidateProfile() {
   const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+
 
   // Load user data on component mount
   useEffect(() => {
@@ -769,8 +771,12 @@ export default function CandidateProfile() {
         credentials: "include",
         body: formData
       });
-      if (!response.ok) throw new Error("Upload failed");
-      return response.json();
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload failed: ${response.status} ${errorText}`);
+      }
+      const result = await response.json();
+      return result;
     },
     onSuccess: (data) => {
       console.log("Resume upload response:", data); // Debug log
@@ -861,6 +867,17 @@ export default function CandidateProfile() {
       setError("Please fill all required fields to save your profile.");
       return;
     }
+    
+    // Validate URLs if provided
+    if (profileData.linkedinUrl && !profileData.linkedinUrl.startsWith('http://') && !profileData.linkedinUrl.startsWith('https://')) {
+      setError("LinkedIn URL must start with http:// or https://");
+      return;
+    }
+    if (profileData.githubUrl && !profileData.githubUrl.startsWith('http://') && !profileData.githubUrl.startsWith('https://')) {
+      setError("GitHub URL must start with http:// or https://");
+      return;
+    }
+    
     setError("");
     
     const dataToSend = { 
@@ -1323,8 +1340,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="cnic"
-                    value={profileQueryData.cnic}
-                    onChange={(e) => setProfileData({ ...profileQueryData, cnic: e.target.value.replace(/[^\d]/g, "") })}
+                    value={profileData.cnic}
+                    onChange={(e) => setProfileData({ ...profileData, cnic: e.target.value.replace(/[^\d]/g, "") })}
                     placeholder="12345678901234"
                     maxLength={14}
                     minLength={14}
@@ -1337,8 +1354,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="firstName"
-                    value={profileQueryData.firstName}
-                    onChange={(e) => setProfileData({ ...profileQueryData, firstName: e.target.value })}
+                    value={profileData.firstName}
+                    onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
                     placeholder="John"
                   />
                 </div>
@@ -1349,8 +1366,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="lastName"
-                    value={profileQueryData.lastName}
-                    onChange={(e) => setProfileData({ ...profileQueryData, lastName: e.target.value })}
+                    value={profileData.lastName}
+                    onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })}
                     placeholder="Doe"
                   />
                 </div>
@@ -1362,8 +1379,8 @@ export default function CandidateProfile() {
                   <Input
                     id="dateOfBirth"
                     type="date"
-                    value={profileQueryData.dateOfBirth}
-                    onChange={(e) => setProfileData({ ...profileQueryData, dateOfBirth: e.target.value })}
+                    value={profileData.dateOfBirth}
+                    onChange={(e) => setProfileData({ ...profileData, dateOfBirth: e.target.value })}
                   />
                 </div>
                 <div>
@@ -1398,8 +1415,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="apartment"
-                    value={profileQueryData.apartment}
-                    onChange={(e) => setProfileData({ ...profileQueryData, apartment: e.target.value })}
+                    value={profileData.apartment}
+                    onChange={(e) => setProfileData({ ...profileData, apartment: e.target.value })}
                     placeholder="Apt 4B"
                   />
                 </div>
@@ -1410,8 +1427,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="street"
-                    value={profileQueryData.street}
-                    onChange={(e) => setProfileData({ ...profileQueryData, street: e.target.value })}
+                    value={profileData.street}
+                    onChange={(e) => setProfileData({ ...profileData, street: e.target.value })}
                     placeholder="123 Main Street"
                   />
                 </div>
@@ -1422,8 +1439,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="area"
-                    value={profileQueryData.area}
-                    onChange={(e) => setProfileData({ ...profileQueryData, area: e.target.value })}
+                    value={profileData.area}
+                    onChange={(e) => setProfileData({ ...profileData, area: e.target.value })}
                     placeholder="Downtown"
                   />
                 </div>
@@ -1434,8 +1451,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="city"
-                    value={profileQueryData.city}
-                    onChange={(e) => setProfileData({ ...profileQueryData, city: e.target.value })}
+                    value={profileData.city}
+                    onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}
                     placeholder="New York"
                   />
                 </div>
@@ -1446,8 +1463,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="province"
-                    value={profileQueryData.province}
-                    onChange={(e) => setProfileData({ ...profileQueryData, province: e.target.value })}
+                    value={profileData.province}
+                    onChange={(e) => setProfileData({ ...profileData, province: e.target.value })}
                     placeholder="NY"
                   />
                 </div>
@@ -1458,8 +1475,8 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="postalCode"
-                    value={profileQueryData.postalCode}
-                    onChange={(e) => setProfileData({ ...profileQueryData, postalCode: e.target.value })}
+                    value={profileData.postalCode}
+                    onChange={(e) => setProfileData({ ...profileData, postalCode: e.target.value })}
                     placeholder="10001"
                   />
                 </div>
@@ -1484,7 +1501,7 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="linkedinUrl"
-                    type="url"
+                    type="text"
                     value={profileData.linkedinUrl}
                     onChange={e => setProfileData({ ...profileData, linkedinUrl: e.target.value })}
                     placeholder="https://linkedin.com/in/yourprofile"
@@ -1499,7 +1516,7 @@ export default function CandidateProfile() {
                   </Label>
                   <Input
                     id="githubUrl"
-                    type="url"
+                    type="text"
                     value={profileData.githubUrl}
                     onChange={e => setProfileData({ ...profileData, githubUrl: e.target.value })}
                     placeholder="https://github.com/yourusername"
@@ -2085,8 +2102,8 @@ export default function CandidateProfile() {
                   <Textarea
                     id="motivationLetter"
                     rows={6}
-                    value={profileQueryData.motivationLetter}
-                    onChange={(e) => setProfileData({ ...profileQueryData, motivationLetter: e.target.value })}
+                    value={profileData.motivationLetter}
+                    onChange={(e) => setProfileData({ ...profileData, motivationLetter: e.target.value })}
                     placeholder="Write a brief cover letter..."
                   />
                 </div>
@@ -2185,7 +2202,7 @@ export default function CandidateProfile() {
             </Card>
 
             <div className="flex justify-end gap-2">
-              {isProfileComplete({ ...profileQueryData, email: user?.email }) && (
+              {isProfileComplete({ ...profileData, email: user?.email }) && (
                 <Button type="button" variant="outline" onClick={() => { setIsEditing(false); setError(""); }} className="flex items-center space-x-2">
                   <X className="h-4 w-4" />
                   <span>Cancel</span>
@@ -2193,7 +2210,7 @@ export default function CandidateProfile() {
               )}
               <Button 
                 type="submit" 
-                disabled={updateProfileMutation.isPending || !isProfileComplete({ ...profileQueryData, email: user?.email })}
+                disabled={updateProfileMutation.isPending || !isProfileComplete({ ...profileData, email: user?.email })}
                 className="px-8 flex items-center space-x-2"
               >
                 {updateProfileMutation.isPending ? (

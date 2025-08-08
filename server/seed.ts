@@ -4,6 +4,11 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { jobs, candidates, applications, offers, jobCosts } from "@shared/schema";
 
+// Set the correct database URL if not provided
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = "postgresql://postgres:2162@localhost:5432/nastp_db";
+}
+
 async function seedAdminUser() {
   try {
     // Check if admin user already exists
