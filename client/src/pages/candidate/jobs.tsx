@@ -234,6 +234,12 @@ export default function CandidateJobs() {
                 <span>My Applications</span>
               </a>
             </Link>
+            <Link href="/candidate/assessments">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>My Assessments</span>
+              </a>
+            </Link>
           </nav>
         </aside>
 
