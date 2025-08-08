@@ -42,7 +42,8 @@ import {
   Layers,
   Activity,
   Edit,
-  X
+  X,
+  Github
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/NASTPLogo.png";
@@ -118,71 +119,40 @@ function ProfileCard({ profile, educationList, experienceList, skills, onEdit }:
               <span className="font-semibold">Address:</span>
             </div>
             <div className="ml-6">
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
               <div>{profile.apartment}, {profile.street}, {profile.area}</div>
               <div>{profile.city}, {profile.province}, {profile.postalCode}</div>
-=======
->>>>>>> Stashed changes
-            <div>{profile.apartment}, {profile.street}, {profile.area}</div>
-            <div>{profile.city}, {profile.province}, {profile.postalCode}</div>
-          </div>
-            {/* Social Links (moved here) */}
-<<<<<<< Updated upstream
-          {(profile.linkedinUrl || profile.githubUrl) && (
-=======
-          {(profile.linkedin || profile.github) && (
->>>>>>> Stashed changes
-              <div className="mt-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Globe className="h-4 w-4 text-gray-500" />
-                <span className="font-semibold">Social Links:</span>
-              </div>
-              <div className="ml-6 space-y-1">
-<<<<<<< Updated upstream
-                {profile.linkedinUrl && (
-=======
-                {profile.linkedin && (
->>>>>>> Stashed changes
-                  <div className="flex items-center space-x-2">
-                    <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                    </svg>
-<<<<<<< Updated upstream
-                    <a href={profile.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
-=======
-                    <a href={profile.linkedin} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
->>>>>>> Stashed changes
-                      LinkedIn Profile
-                    </a>
-                  </div>
-                )}
-<<<<<<< Updated upstream
-                {profile.githubUrl && (
-=======
-                {profile.github && (
->>>>>>> Stashed changes
-                  <div className="flex items-center space-x-2">
-                    <svg className="h-4 w-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                    </svg>
-<<<<<<< Updated upstream
-                    <a href={profile.githubUrl} target="_blank" rel="noopener noreferrer" className="text-gray-800 hover:underline text-sm">
-=======
-                    <a href={profile.github} target="_blank" rel="noopener noreferrer" className="text-gray-800 hover:underline text-sm">
->>>>>>> Stashed changes
-                      GitHub Profile
-                    </a>
-                  </div>
-                )}
-              </div>
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
             </div>
-          )}
+            {/* Social Links (moved here) */}
+            {(profile.linkedin || profile.github) && (
+              <div className="mt-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Globe className="h-4 w-4 text-gray-500" />
+                  <span className="font-semibold">Social Links:</span>
+                </div>
+                <div className="ml-6 space-y-1">
+                  {profile.linkedin && (
+                    <div className="flex items-center space-x-2">
+                      <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                      </svg>
+                      <a href={profile.linkedin} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                        LinkedIn Profile
+                      </a>
+                    </div>
+                  )}
+                  {profile.github && (
+                    <div className="flex items-center space-x-2">
+                      <svg className="h-4 w-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                      </svg>
+                      <a href={profile.github} target="_blank" rel="noopener noreferrer" className="text-gray-800 hover:underline text-sm">
+                        GitHub Profile
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         
@@ -508,21 +478,10 @@ export default function CandidateProfile() {
     motivationLetter: "",
     resumeUrl: "",
     profilePicture: "",
-<<<<<<< Updated upstream
-    resumeText: "",
-    linkedinUrl: "",
-    githubUrl: "",
-    projects: []
-=======
-<<<<<<< Updated upstream
-    resumeText: ""
-=======
     resumeText: "",
     linkedin: "",
     github: "",
     projects: []
->>>>>>> Stashed changes
->>>>>>> Stashed changes
   });
 
   const [educationList, setEducationList] = useState([
@@ -676,39 +635,6 @@ export default function CandidateProfile() {
       // Only update profile data if we're not currently editing
       // This prevents form data from being reset when education/experience is added
       if (!isEditing) {
-<<<<<<< Updated upstream
-        // Extract only the fields that should be editable, excluding system fields
-        const {
-          id,
-          userId,
-          createdAt,
-          updatedAt,
-          ...editableFields
-        } = profileQueryData;
-        
-=======
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-        setProfileData({
-          cnic: editableFields.cnic || "",
-          firstName: editableFields.firstName || "",
-          lastName: editableFields.lastName || "",
-          dateOfBirth: editableFields.dateOfBirth || "",
-          apartment: editableFields.apartment || "",
-          street: editableFields.street || "",
-          area: editableFields.area || "",
-          city: editableFields.city || "",
-          province: editableFields.province || "",
-          postalCode: editableFields.postalCode || "",
-          motivationLetter: editableFields.motivationLetter || "",
-          resumeUrl: editableFields.resumeUrl || "",
-          profilePicture: editableFields.profilePicture || "",
-          resumeText: editableFields.resumeText || "",
-          linkedinUrl: editableFields.linkedinUrl || "",
-          githubUrl: editableFields.githubUrl || "",
-          projects: editableFields.projects || []
-        });
-=======
         // Extract only the fields that should be editable, excluding system fields
         const {
           id,
@@ -742,7 +668,6 @@ export default function CandidateProfile() {
         console.log('🔍 [FRONTEND] Social links in newProfileData - linkedin:', newProfileData.linkedin, 'github:', newProfileData.github);
         
         setProfileData(newProfileData);
->>>>>>> Stashed changes
       }
       
       // Initialize isEditing based on profile completeness only once
@@ -946,11 +871,6 @@ export default function CandidateProfile() {
       return;
     }
     setError("");
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
     
     const dataToSend = { 
         ...profileData, 
@@ -960,14 +880,8 @@ export default function CandidateProfile() {
     
     console.log('🔍 [FRONTEND] Sending profile data:', JSON.stringify(dataToSend, null, 2));
     console.log('🔍 [FRONTEND] Data types:', Object.entries(dataToSend).map(([key, value]) => `${key}: ${typeof value}`));
-<<<<<<< Updated upstream
-    
-=======
     console.log('🔍 [FRONTEND] Social links check - linkedin:', (dataToSend as any).linkedin, 'github:', (dataToSend as any).github);
     console.log('🔍 [FRONTEND] profileData state:', JSON.stringify(profileData, null, 2));
-    
->>>>>>> Stashed changes
->>>>>>> Stashed changes
     try {
       await updateProfileMutation.mutateAsync(dataToSend);
       // setIsEditing(false) is now handled in the mutation's onSuccess callback
@@ -1185,44 +1099,7 @@ export default function CandidateProfile() {
     window.location.href = "/login";
   };
 
-<<<<<<< Updated upstream
-  // Mutation for saving social links only
-  const updateSocialLinksMutation = useMutation({
-    mutationFn: async (data: { linkedinUrl: string; githubUrl: string }) => {
-      const response = await apiRequest('PUT', '/api/profile', data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: 'Success',
-        description: 'Social links updated successfully',
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to update social links',
-        variant: 'destructive',
-      });
-    },
-  });
 
-  // Handler for saving social links
-  const handleSaveSocialLinks = () => {
-    updateSocialLinksMutation.mutate({
-      linkedinUrl: profileData.linkedinUrl,
-      githubUrl: profileData.githubUrl,
-    });
-  };
-
-=======
-<<<<<<< Updated upstream
-=======
-
-
->>>>>>> Stashed changes
->>>>>>> Stashed changes
   if (isLoading || updateProfileMutation.isPending) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1298,28 +1175,14 @@ export default function CandidateProfile() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">My Profile</h2>
               <p className="text-gray-600">View and edit your profile information</p>
             </div>
-<<<<<<< Updated upstream
             <ProfileCard 
-<<<<<<< Updated upstream
-=======
-              profile={{ ...profileQueryData, email: user?.email }} 
-=======
-             <ProfileCard 
->>>>>>> Stashed changes
               profile={{ 
                 ...profileQueryData, 
                 email: user?.email,
                 projects: projectsList,
-<<<<<<< Updated upstream
-                linkedinUrl: profileQueryData.linkedinUrl,
-                githubUrl: profileQueryData.githubUrl
-              }} 
-=======
-                 linkedin: profileQueryData.linkedin,
-                 github: profileQueryData.github
-              }} 
->>>>>>> Stashed changes
->>>>>>> Stashed changes
+                linkedin: profileQueryData.linkedin,
+                github: profileQueryData.github
+              }}
               educationList={educationList} 
               experienceList={experienceList} 
               skills={skills}
@@ -1615,7 +1478,6 @@ export default function CandidateProfile() {
               </CardContent>
             </Card>
 
-<<<<<<< Updated upstream
             {/* Social Links */}
             <Card>
               <CardHeader>
@@ -1626,45 +1488,37 @@ export default function CandidateProfile() {
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="linkedinUrl" className="flex items-center space-x-2">
+                  <Label htmlFor="linkedin" className="flex items-center space-x-2">
                     <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
                     </svg>
                     <span>LinkedIn URL</span>
                   </Label>
                   <Input
-                    id="linkedinUrl"
+                    id="linkedin"
                     type="url"
-                    value={profileData.linkedinUrl}
-                    onChange={e => setProfileData({ ...profileData, linkedinUrl: e.target.value })}
+                    value={profileData.linkedin}
+                    onChange={e => setProfileData({ ...profileData, linkedin: e.target.value })}
                     placeholder="https://linkedin.com/in/yourprofile"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="githubUrl" className="flex items-center space-x-2">
+                  <Label htmlFor="github" className="flex items-center space-x-2">
                     <svg className="h-4 w-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                     </svg>
                     <span>GitHub URL</span>
                   </Label>
                   <Input
-                    id="githubUrl"
+                    id="github"
                     type="url"
-                    value={profileData.githubUrl}
-                    onChange={e => setProfileData({ ...profileData, githubUrl: e.target.value })}
+                    value={profileData.github}
+                    onChange={e => setProfileData({ ...profileData, github: e.target.value })}
                     placeholder="https://github.com/yourusername"
                   />
                 </div>
               </CardContent>
             </Card>
-
-=======
-<<<<<<< Updated upstream
-=======
-
-
->>>>>>> Stashed changes
->>>>>>> Stashed changes
             {/* Education */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -1904,23 +1758,7 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <Label htmlFor={`skills-${index}`} className="flex items-center space-x-2">
-                          <Code className="h-4 w-4" />
-                          <span>Skills Used</span>
-                        </Label>
-                        <Input
-                          id={`skills-${index}`}
-                          value={experience.skills}
-                          onChange={(e) => {
-                            const newExperience = [...experienceList];
-                            newExperience[index].skills = e.target.value;
-                            setExperienceList(newExperience);
-                          }}
-                          placeholder="React, JavaScript, HTML, CSS"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <Label htmlFor={`description-${index}`} className="flex items-center space-x-2">
+                        <Label htmlFor={`experienceDescription-${index}`} className="flex items-center space-x-2">
                           <FileText className="h-4 w-4" />
                           <span>Description (Bullet Points)</span>
                         </Label>
@@ -1993,74 +1831,26 @@ export default function CandidateProfile() {
                         <Trash2 className="h-4 w-4" />
                         <span>Remove</span>
                       </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleExperienceSubmit(experience, index)}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExperienceSubmit(experience, index)}
                         disabled={experience.id ? updateExperienceMutation.isPending : createExperienceMutation.isPending}
-                          className="flex items-center space-x-1"
-                        >
+                        className="flex items-center space-x-1"
+                      >
                         {(experience.id ? updateExperienceMutation.isPending : createExperienceMutation.isPending) ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                              <span>Saving...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Save className="h-4 w-4" />
-                              <span>Save</span>
-                            </>
-                          )}
-                        </Button>
-<<<<<<< Updated upstream
-=======
-                      ) : (
-                        <div className="flex items-center text-green-600 text-sm">
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Saved
-                        </div>
-<<<<<<< Updated upstream
-                      )}
-=======
-                      </div>
-                      <div>
-                        <Label htmlFor={`projectTechStack-${index}`} className="flex items-center space-x-2">
-                          <Code className="h-4 w-4" />
-                          <span>Tech Stack</span>
-                        </Label>
-                        <Input
-                          id={`projectTechStack-${index}`}
-                          value={project.techStack}
-                          onChange={(e) => {
-                            const newProjects = [...projectsList];
-                            newProjects[index].techStack = e.target.value;
-                            setProjectsList(newProjects);
-                          }}
-                          placeholder="React, Node.js, MongoDB"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`projectGithub-${index}`} className="flex items-center space-x-2">
-                          <svg className="h-4 w-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                          </svg>
-                          <span>GitHub URL</span>
-                        </Label>
-                        <Input
-                          id={`projectGithubUrl-${index}`}
-                          type="url"
-                          value={project.githubUrl}
-                          onChange={(e) => {
-                            const newProjects = [...projectsList];
-                            newProjects[index].githubUrl = e.target.value;
-                            setProjectsList(newProjects);
-                          }}
-                          placeholder="https://github.com/username/project"
-                        />
-                      </div>
->>>>>>> Stashed changes
->>>>>>> Stashed changes
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4" />
+                            <span>Save</span>
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -2114,11 +1904,11 @@ export default function CandidateProfile() {
                               <span className="text-gray-500 text-sm">•</span>
                               <Input
                                 value={bullet}
-                          onChange={(e) => {
-                            const newProjects = [...projectsList];
+                                onChange={(e) => {
+                                  const newProjects = [...projectsList];
                                   newProjects[index].description[bulletIndex] = e.target.value;
-                            setProjectsList(newProjects);
-                          }}
+                                  setProjectsList(newProjects);
+                                }}
                                 placeholder="Enter bullet point..."
                                 className="flex-1"
                               />
@@ -2157,12 +1947,12 @@ export default function CandidateProfile() {
                         </div>
                       </div>
                       <div>
-                        <Label htmlFor={`projectTechStack-${index}`} className="flex items-center space-x-2">
+                        <Label htmlFor={`techStack-${index}`} className="flex items-center space-x-2">
                           <Code className="h-4 w-4" />
                           <span>Tech Stack</span>
                         </Label>
                         <Input
-                          id={`projectTechStack-${index}`}
+                          id={`techStack-${index}`}
                           value={project.techStack}
                           onChange={(e) => {
                             const newProjects = [...projectsList];
@@ -2173,15 +1963,12 @@ export default function CandidateProfile() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor={`projectGithubUrl-${index}`} className="flex items-center space-x-2">
-                          <svg className="h-4 w-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                          </svg>
+                        <Label htmlFor={`githubUrl-${index}`} className="flex items-center space-x-2">
+                          <Github className="h-4 w-4" />
                           <span>GitHub URL</span>
                         </Label>
                         <Input
-                          id={`projectGithubUrl-${index}`}
-                          type="url"
+                          id={`githubUrl-${index}`}
                           value={project.githubUrl}
                           onChange={(e) => {
                             const newProjects = [...projectsList];
@@ -2192,28 +1979,38 @@ export default function CandidateProfile() {
                         />
                       </div>
                     </div>
-                                            <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeProject(index)}
-                            className="text-red-600 hover:text-red-700 flex items-center space-x-1"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span>Remove</span>
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => handleProjectSubmit(project, index)}
-                            disabled={!project.title || !project.description}
-                            className="flex items-center space-x-1"
-                          >
+                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeProject(index)}
+                        className="text-red-600 hover:text-red-700 flex items-center space-x-1"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Remove</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleProjectSubmit(project, index)}
+                        disabled={project.id ? updateProjectMutation.isPending : createProjectMutation.isPending}
+                        className="flex items-center space-x-1"
+                      >
+                        {(project.id ? updateProjectMutation.isPending : createProjectMutation.isPending) ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
                             <Save className="h-4 w-4" />
                             <span>Save</span>
-                          </Button>
-                        </div>
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </CardContent>

@@ -475,12 +475,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Profile not found' });
       }
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-      const profileData = insertCandidateSchema.partial().parse(req.body);
-=======
->>>>>>> Stashed changes
       console.log('✅ [PROFILE UPDATE] Found existing candidate:', {
         id: candidate.id,
         currentUpdatedAt: candidate.updatedAt,
@@ -512,22 +506,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log('🧹 [PROFILE UPDATE] Cleaned request body:', JSON.stringify(cleanedBody, null, 2));
-<<<<<<< Updated upstream
-
-      // Map camelCase to snake_case for social links
-      if (cleanedBody.linkedinUrl) {
-        cleanedBody.linkedin_url = cleanedBody.linkedinUrl;
-        delete cleanedBody.linkedinUrl;
-      }
-      if (cleanedBody.githubUrl) {
-        cleanedBody.github_url = cleanedBody.githubUrl;
-        delete cleanedBody.githubUrl;
-      }
-
-      const profileData = insertCandidateSchema.partial().parse(cleanedBody);
-      console.log('✅ [PROFILE UPDATE] Schema validation passed:', JSON.stringify(profileData, null, 2));
-      
-=======
       console.log('🔍 [PROFILE UPDATE] Social links in request - linkedin:', cleanedBody.linkedin, 'github:', cleanedBody.github);
 
       // Validate the data with schema (includes social links)
@@ -558,9 +536,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : null;
       
       console.log('🔍 [PROFILE UPDATE] Final data for database:', JSON.stringify(profileData, null, 2));
-      
->>>>>>> Stashed changes
->>>>>>> Stashed changes
       // If CNIC is being updated, check uniqueness
       if (profileData.cnic && profileData.cnic !== candidate.cnic) {
         console.log('🔍 [PROFILE UPDATE] Checking CNIC uniqueness:', profileData.cnic);
@@ -573,19 +548,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('📞 [PROFILE UPDATE] Calling storage.updateCandidate with data:', JSON.stringify(profileData, null, 2));
       const updatedCandidate = await storage.updateCandidate(candidate.id, profileData);
-<<<<<<< Updated upstream
-      
-      console.log('✅ [PROFILE UPDATE] Profile updated successfully:', {
-        id: updatedCandidate.id,
-        updatedAt: updatedCandidate.updatedAt,
-        type: typeof updatedCandidate.updatedAt
-      });
-=======
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-
-      res.json(updatedCandidate);
-=======
       
       // Handle projects if they are included in the request
       if (validatedData.projects) {
@@ -637,7 +599,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       res.json(responseCandidate);
->>>>>>> Stashed changes
     } catch (error: unknown) {
       console.error('❌ [PROFILE UPDATE] Error occurred:', error);
       
