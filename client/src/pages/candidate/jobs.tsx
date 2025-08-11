@@ -22,7 +22,8 @@ import {
   FileText,
   Search,
   Building,
-  LogOut
+  LogOut,
+  BookOpen
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
 import { ChatbotWidget } from "@/components/ChatbotWidget";
@@ -214,24 +215,30 @@ export default function CandidateJobs() {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className="w-64 bg-white shadow-sm min-h-screen border-r border-gray-200">
+        <aside className="w-64 bg-primary shadow-sm min-h-screen border-r border-primary-foreground/10">
           <nav className="p-4 space-y-2">
-            <Link href="/candidate">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+            <Link href="/candidate/profile">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
                 <User className="h-5 w-5" />
                 <span>My Profile</span>
               </a>
             </Link>
             <Link href="/candidate/jobs">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary text-white">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary-foreground text-primary">
                 <Briefcase className="h-5 w-5" />
                 <span>Job Listings</span>
               </a>
             </Link>
             <Link href="/candidate/applications">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
                 <FileText className="h-5 w-5" />
                 <span>My Applications</span>
+              </a>
+            </Link>
+            <Link href="/candidate/assessments">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                <BookOpen className="h-5 w-5" />
+                <span>My Assessments</span>
               </a>
             </Link>
           </nav>

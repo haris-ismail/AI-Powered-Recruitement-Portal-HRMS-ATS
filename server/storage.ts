@@ -1,9 +1,9 @@
 import { 
-  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, candidateNotes, candidateReviews, skills, projects,
+  users, candidates, education, experience, jobTemplates, jobs, applications, emailTemplates, sentEmails, candidateNotes, candidateReviews, skills, projects,
   type User, type InsertUser, type Candidate, type InsertCandidate,
   type Education, type InsertEducation, type Experience, type InsertExperience,
   type JobTemplate, type InsertJobTemplate, type Job, type InsertJob,
-  type Application, type InsertApplication, type EmailTemplate, type InsertEmailTemplate,
+  type Application, type InsertApplication, type EmailTemplate, type InsertEmailTemplate, type SentEmail, type InsertSentEmail,
   type CandidateNote, type InsertCandidateNote,
   type CandidateReview, type InsertCandidateReview,
   type Skill, type InsertSkill, type Project, type InsertProject,
@@ -49,6 +49,8 @@ export interface IStorage {
   deleteApplication(applicationId: number): Promise<void>;
   getEmailTemplates(): Promise<EmailTemplate[]>;
   createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
+  logSentEmail(emailData: InsertSentEmail): Promise<SentEmail>;
+  getSentEmails(candidateId?: number): Promise<SentEmail[]>;
   getJobStats(): Promise<any>;
   getCandidateWithProfile(candidateId: number): Promise<any>;
   getCandidateNotes(candidateId: number): Promise<CandidateNote[]>;
@@ -258,6 +260,18 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async logSentEmail(emailData: InsertSentEmail): Promise<SentEmail> {
+    const [row] = await db.insert(sentEmails).values(emailData).returning();
+    return row;
+  }
+
+  async getSentEmails(candidateId?: number): Promise<SentEmail[]> {
+    if (candidateId) {
+      return await db.select().from(sentEmails).where(eq(sentEmails.candidateId, candidateId));
+    }
+    return await db.select().from(sentEmails);
+  }
+
   async getJobStats(): Promise<any> {
     const jobsCount = await db.select().from(jobs).then(rows => rows.length);
     const candidatesCount = await db.select().from(candidates).then(rows => rows.length);
@@ -265,8 +279,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCandidateWithProfile(candidateId: number): Promise<any> {
+    console.log('🔍 getCandidateWithProfile called for candidateId:', candidateId);
+    
     const candidate = await db.select().from(candidates).where(eq(candidates.id, candidateId)).then(rows => rows[0]);
     if (!candidate) return null;
+    
+    console.log('🔍 Found candidate:', { id: candidate.id, userId: candidate.userId });
+    
+    // Get user data to include email
+    const user = await db.select().from(users).where(eq(users.id, candidate.userId)).then(rows => rows[0]);
+    console.log('🔍 Found user:', { id: user?.id, email: user?.email });
+    
     const educationList = await db.select().from(education).where(eq(education.candidateId, candidateId));
     const experienceList = await db.select().from(experience).where(eq(experience.candidateId, candidateId));
     const projectsList = await db.select().from(projects).where(eq(projects.candidateId, candidateId));
@@ -298,13 +321,22 @@ export class DatabaseStorage implements IStorage {
         : (Array.isArray(project.description) ? project.description : [""])
     }));
     
-    return { 
+    const result = { 
       ...candidate, 
+      email: user?.email, // Include email from user table
       education: educationList, 
       experience: processedExperienceList,
       projects: processedProjectsList,
       resumeText: candidate.resumeText // Ensure resumeText is included
     };
+    
+    console.log('🔍 Returning candidate with profile:', { 
+      id: result.id, 
+      email: result.email, 
+      userId: result.userId 
+    });
+    
+    return result;
   }
 
   async getCandidateNotes(candidateId: number): Promise<CandidateNote[]> {
@@ -941,8 +973,7 @@ export class DatabaseStorage implements IStorage {
         }
         
         // Update attempt with final results
-        // Calculate passing threshold as percentage of max score
-        const passingThreshold = (template.passingScore / 100) * maxScore;
+        // Calculate passed status using existing passingThreshold
         const passed = score >= passingThreshold;
         console.log(`\n📝 [UPDATING ATTEMPT] Updating attempt ${attemptId} with final results`);
         console.log(`   📊 Final Score: ${score}/${maxScore}`);

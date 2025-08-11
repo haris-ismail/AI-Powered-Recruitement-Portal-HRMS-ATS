@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Session</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Clear Session</h1>
+    <div id="status"></div>
+    <button onclick="clearSession()">Clear Session</button>
+    <button onclick="window.location.href='http://localhost:3000'">Go to Login</button>
+
+    <script>
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        async function clearSession() {
+            updateStatus('🔄 Clearing session...', 'info');
+            
+            try {
+                // Clear localStorage
+                localStorage.removeItem('token');
+                localStorage.removeItem('csrf_token');
+                sessionStorage.clear();
+                
+                updateStatus('✅ Client-side storage cleared', 'success');
+                
+                // Try to call logout API
+                try {
+                    const response = await fetch('http://localhost:5000/api/auth/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    if (response.ok) {
+                        updateStatus('✅ Server session cleared successfully', 'success');
+                    } else {
+                        updateStatus('⚠️ Server logout failed, but client storage is cleared', 'error');
+                    }
+                } catch (error) {
+                    updateStatus('⚠️ Could not reach server, but client storage is cleared', 'error');
+                }
+                
+                updateStatus('✅ Session cleared! You can now login again.', 'success');
+                
+            } catch (error) {
+                updateStatus('❌ Error clearing session: ' + error.message, 'error');
+            }
+        }
+
+        // Auto-clear on page load
+        window.onload = function() {
+            updateStatus('💡 Click "Clear Session" to logout and clear all stored data', 'info');
+        };
+    </script>
+</body>
+</html> 

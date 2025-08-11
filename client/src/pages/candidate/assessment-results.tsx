@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, Clock, LogOut } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, LogOut, User, Briefcase, FileText, BookOpen, Target, Award, CheckCircle, AlertCircle } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
 import { getCurrentUser, removeToken } from "@/lib/auth";
 import logo from "@/assets/NASTPLogo.png";
@@ -33,7 +33,15 @@ export default function AssessmentResultsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const user = getCurrentUser();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+    };
+    loadUser();
+  }, []);
 
   useEffect(() => {
     console.log(`🔍 [RESULTS PAGE] Assessment results page loaded`);
@@ -103,22 +111,25 @@ export default function AssessmentResultsPage() {
   }, []);
 
   const handleSubmitApplication = async () => {
-    if (!jobId) return;
-    
+    if (!jobId) {
+      console.error("No job ID available for application submission");
+      return;
+    }
+
     try {
       setSubmitting(true);
-      await fetcher('/applications', {
+      const response = await fetcher('/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: Number(jobId) })
+        body: JSON.stringify({ jobId })
       });
-      
-      // Remember job locally so Jobs page can immediately show "Applied"
-      localStorage.setItem('justAppliedJob', jobId.toString());
-      setSubmitted(true);
+
+      if (response) {
+        setSubmitted(true);
+        console.log("Application submitted successfully");
+      }
     } catch (error) {
-      console.error('Error submitting application:', error);
-      alert('Failed to submit application. Please try again.');
+      console.error("Error submitting application:", error);
     } finally {
       setSubmitting(false);
     }
@@ -126,10 +137,10 @@ export default function AssessmentResultsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading assessment results...</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2">Loading results...</span>
         </div>
       </div>
     );
@@ -137,12 +148,19 @@ export default function AssessmentResultsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Error: {error}</p>
-          <Link href="/candidate/jobs">
-            <Button>Back to Jobs</Button>
-          </Link>
+      <div className="min-h-screen bg-gray-50">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Results</h3>
+            <p className="text-gray-600">{error}</p>
+            <Button 
+              onClick={() => window.location.href = "/candidate/assessments"} 
+              className="mt-4"
+            >
+              Return to Assessments
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -150,16 +168,25 @@ export default function AssessmentResultsPage() {
 
   if (!result) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">No results found.</p>
-          <Link href="/candidate/jobs">
-            <Button>Back to Jobs</Button>
-          </Link>
+      <div className="min-h-screen bg-gray-50">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Results Found</h3>
+            <p className="text-gray-600">Assessment results could not be loaded.</p>
+            <Button 
+              onClick={() => window.location.href = "/candidate/assessments"} 
+              className="mt-4"
+            >
+              Return to Assessments
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
+
+  const percentage = Math.round((result.score / result.maxScore) * 100);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -168,12 +195,12 @@ export default function AssessmentResultsPage() {
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center space-x-4">
             <img src={logo} alt="NASTP Logo" className="h-20 w-auto" />
-            <Badge className="bg-accent text-white">Assessment Results</Badge>
+            <Badge className="bg-accent text-white">Candidate Portal</Badge>
           </div>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
               <span className="text-sm font-medium text-gray-700">
-                {user?.email}
+                {user ? user.email : 'Loading...'}
               </span>
               <Button variant="ghost" size="sm" onClick={() => {
                 removeToken();
@@ -186,152 +213,183 @@ export default function AssessmentResultsPage() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto py-8 px-4">
-        {/* Results Summary */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              {result.passed ? (
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
-              ) : (
-                <XCircle className="h-6 w-6 text-red-600" />
-              )}
-              <span>Assessment Results</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{result.score}</div>
-                <div className="text-sm text-gray-500">Score</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{result.maxScore}</div>
-                <div className="text-sm text-gray-500">Maximum Score</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">
-                  {Math.round((result.score / result.maxScore) * 100)}%
-                </div>
-                <div className="text-sm text-gray-500">Percentage</div>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-center mb-4">
-              <Badge variant={result.passed ? "default" : "destructive"} className="text-lg px-4 py-2">
-                {result.passed ? "PASSED" : "FAILED"}
-              </Badge>
-            </div>
-            <div className="text-center text-sm text-gray-600">
-              <p>Passing requirement: {Math.round((result.score / result.maxScore) * 100)}% achieved</p>
-              <p>Score: {result.score} out of {result.maxScore} points</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex">
+        {/* Sidebar */}
+        <aside className="w-64 bg-primary shadow-sm min-h-screen border-r border-primary-foreground/10">
+          <nav className="p-4 space-y-2">
+            <Link href="/candidate/profile">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                <User className="h-5 w-5" />
+                <span>My Profile</span>
+              </a>
+            </Link>
+            <Link href="/candidate/jobs">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                <Briefcase className="h-5 w-5" />
+                <span>Job Listings</span>
+              </a>
+            </Link>
+            <Link href="/candidate/applications">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                <FileText className="h-5 w-5" />
+                <span>My Applications</span>
+              </a>
+            </Link>
+            <Link href="/candidate/assessments">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary-foreground text-primary">
+                <BookOpen className="h-5 w-5" />
+                <span>My Assessments</span>
+              </a>
+            </Link>
+          </nav>
+        </aside>
 
-        {/* Question Review */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Question Review</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {result.questions.map((question, index) => (
-                <div key={question.id} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-medium text-gray-900">
-                      Question {index + 1}
-                    </h3>
+        {/* Main Content */}
+        <main className="flex-1 p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-8">
+              <div className="flex items-center space-x-3 mb-2">
+                <Award className="h-8 w-8 text-primary" />
+                <h1 className="text-3xl font-bold text-gray-900">Assessment Results</h1>
+              </div>
+              <p className="text-gray-600 text-lg">Your assessment performance summary</p>
+            </div>
+
+            {/* Results Summary Card */}
+            <Card className="mb-8 border-l-4 border-l-primary">
+              <CardHeader>
+                <CardTitle className="text-xl flex items-center space-x-2">
+                  {result.passed ? (
+                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  ) : (
+                    <XCircle className="h-6 w-6 text-red-600" />
+                  )}
+                  <span>Assessment {result.passed ? 'Passed' : 'Completed'}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-primary mb-2">{result.score}</div>
+                    <div className="text-sm text-gray-600">Points Earned</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-gray-700 mb-2">{result.maxScore}</div>
+                    <div className="text-sm text-gray-600">Total Points</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-primary mb-2">{percentage}%</div>
+                    <div className="text-sm text-gray-600">Success Rate</div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      {question.isCorrect ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-red-600" />
-                      )}
-                      <span className="text-sm text-gray-500">
-                        {question.pointsEarned} / {question.pointsEarned} points
-                      </span>
+                      <Target className="h-5 w-5 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">Status</span>
                     </div>
-                  </div>
-                  
-                  <p className="text-gray-700 mb-3">{question.questionText}</p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-600">Your Answer:</span>
-                      <p className="text-gray-800 mt-1">
-                        {Array.isArray(question.yourAnswer) 
-                          ? question.yourAnswer.join(", ") 
-                          : question.yourAnswer || "No answer provided"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Correct Answer:</span>
-                      <p className="text-gray-800 mt-1">
-                        {Array.isArray(question.correctAnswers) 
-                          ? question.correctAnswers.join(", ") 
-                          : question.correctAnswers}
-                      </p>
-                    </div>
+                    <Badge 
+                      variant="outline" 
+                      className={result.passed ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}
+                    >
+                      {result.passed ? 'Passed' : 'Not Passed'}
+                    </Badge>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Application Submission */}
-        {jobId && !submitted && (
-          <Card className="mt-8">
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-gray-600 mb-4">
-                  {result.passed 
-                    ? "Congratulations! You passed the assessment. Submit your application to continue."
-                    : "Assessment completed. You can still submit your application."
-                  }
-                </p>
-                <Button 
-                  onClick={handleSubmitApplication} 
-                  disabled={submitting}
-                  className="w-full md:w-auto"
-                >
-                  {submitting ? "Submitting..." : "Submit Application"}
+            {/* Question Results */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Question Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {result.questions.map((question, index) => (
+                    <div key={question.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="bg-gray-100 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">
+                            {index + 1}
+                          </span>
+                          <span className="font-medium text-gray-900">Question {index + 1}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge 
+                            variant="outline" 
+                            className={question.isCorrect ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}
+                          >
+                            {question.isCorrect ? 'Correct' : 'Incorrect'}
+                          </Badge>
+                          <span className="text-sm text-gray-600">
+                            {question.pointsEarned} pts
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <p className="text-gray-700 mb-3">{question.questionText}</p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">Your Answer:</span>
+                          <p className="text-gray-600 mt-1">{question.yourAnswer || 'No answer provided'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Correct Answer:</span>
+                          <p className="text-gray-600 mt-1">
+                            {Array.isArray(question.correctAnswers) 
+                              ? question.correctAnswers.join(', ') 
+                              : question.correctAnswers || 'N/A'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Action Buttons */}
+            <div className="mt-8 flex flex-col sm:flex-row gap-4">
+              <Link href="/candidate/assessments">
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  Back to Assessments
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {submitted && (
-          <Card className="mt-8 border-green-200 bg-green-50">
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-green-800 mb-2">
-                  Application Submitted Successfully!
-                </h3>
-                <p className="text-green-700">
-                  Your application has been submitted. You can track your application status in your dashboard.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Navigation */}
-        <div className="mt-8 text-center">
-          <Link href="/candidate/jobs">
-            <Button variant="outline" className="mr-4">
-              Back to Jobs
-            </Button>
-          </Link>
-          <Link href="/candidate/applications">
-            <Button variant="outline">
-              View Applications
-            </Button>
-          </Link>
-        </div>
+              </Link>
+              
+              {jobId && !submitted && (
+                <Button 
+                  onClick={handleSubmitApplication}
+                  disabled={submitting}
+                  className="w-full sm:w-auto"
+                >
+                  {submitting ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Submitting...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Submit Job Application
+                    </>
+                  )}
+                </Button>
+              )}
+              
+              {submitted && (
+                <Button disabled className="w-full sm:w-auto bg-green-600">
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Application Submitted
+                </Button>
+              )}
+            </div>
+          </div>
+        </main>
       </div>
       <ChatbotWidget />
     </div>

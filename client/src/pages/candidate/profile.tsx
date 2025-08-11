@@ -66,6 +66,21 @@ function isProfileComplete(profile: any) {
 
 function ProfileCard({ profile, educationList, experienceList, skills, onEdit }: any) {
   console.log("ProfileCard received profile:", profile); // Debug log
+  
+  // Add null check to prevent errors
+  if (!profile) {
+    return (
+      <Card className="mb-6">
+        <CardContent>
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   console.log("ProfileCard resumeText:", profile.resumeText); // Debug log
   
   const [showCoverLetterModal, setShowCoverLetterModal] = useState(false);
@@ -611,13 +626,13 @@ export default function CandidateProfile() {
   useEffect(() => {
     if (profileQueryData) {
       console.log('🔍 [FRONTEND] profileQueryData received:', JSON.stringify(profileQueryData, null, 2));
-      console.log('🔍 [FRONTEND] Social links in profileQueryData - linkedin:', profileQueryData.linkedin, 'github:', profileQueryData.github);
+      console.log('🔍 [FRONTEND] Social links in profileQueryData - linkedin:', profileQueryData?.linkedin, 'github:', profileQueryData?.github);
       
       // Always update education and experience lists
-      setEducationList(profileQueryData.education || []);
+      setEducationList(profileQueryData?.education || []);
       
       // Convert experience descriptions to arrays if they're not already
-      const processedExperience = (profileQueryData.experience || []).map((exp: any) => ({
+      const processedExperience = (profileQueryData?.experience || []).map((exp: any) => ({
         ...exp,
         description: Array.isArray(exp.description) ? exp.description : 
                    (exp.description ? JSON.parse(exp.description) : [""])
@@ -625,14 +640,14 @@ export default function CandidateProfile() {
       setExperienceList(processedExperience);
       
       // Convert project descriptions to arrays if they're not already
-      const processedProjects = (profileQueryData.projects || []).map((project: any) => ({
+      const processedProjects = (profileQueryData?.projects || []).map((project: any) => ({
         ...project,
         description: Array.isArray(project.description) ? project.description : 
                    (project.description ? JSON.parse(project.description) : [""])
       }));
       setProjectsList(processedProjects);
       
-      setResumeText(profileQueryData.resumeText || "");
+      setResumeText(profileQueryData?.resumeText || "");
       
       // Only update profile data if we're not currently editing
       // This prevents form data from being reset when education/experience is added
@@ -878,11 +893,11 @@ export default function CandidateProfile() {
     }
     
     // Validate URLs if provided
-    if (profileData.linkedinUrl && !profileData.linkedinUrl.startsWith('http://') && !profileData.linkedinUrl.startsWith('https://')) {
+    if (profileData.linkedin && !profileData.linkedin.startsWith('http://') && !profileData.linkedin.startsWith('https://')) {
       setError("LinkedIn URL must start with http:// or https://");
       return;
     }
-    if (profileData.githubUrl && !profileData.githubUrl.startsWith('http://') && !profileData.githubUrl.startsWith('https://')) {
+    if (profileData.github && !profileData.github.startsWith('http://') && !profileData.github.startsWith('https://')) {
       setError("GitHub URL must start with http:// or https://");
       return;
     }
@@ -1144,7 +1159,7 @@ export default function CandidateProfile() {
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <span className="text-sm font-medium text-gray-700">
-                  {profileQueryData.firstName && profileQueryData.lastName 
+                  {profileQueryData?.firstName && profileQueryData?.lastName 
                     ? `${profileQueryData.firstName} ${profileQueryData.lastName}`
                     : user?.email
                   }
@@ -1192,19 +1207,26 @@ export default function CandidateProfile() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">My Profile</h2>
               <p className="text-gray-600">View and edit your profile information</p>
             </div>
-            <ProfileCard 
-              profile={{ 
-                ...profileQueryData, 
-                email: user?.email,
-                projects: projectsList,
-                linkedin: profileQueryData.linkedin,
-                github: profileQueryData.github
-              }}
-              educationList={educationList} 
-              experienceList={experienceList} 
-              skills={skills}
-              onEdit={() => setIsEditing(true)} 
-            />
+            {profileQueryData ? (
+              <ProfileCard 
+                profile={{ 
+                  ...profileQueryData, 
+                  email: user?.email,
+                  projects: projectsList,
+                  linkedin: profileQueryData.linkedin,
+                  github: profileQueryData.github
+                }}
+                educationList={educationList} 
+                experienceList={experienceList} 
+                skills={skills}
+                onEdit={() => setIsEditing(true)} 
+              />
+            ) : (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading profile...</p>
+              </div>
+            )}
           </main>
         </div>
       </div>
@@ -1225,7 +1247,7 @@ export default function CandidateProfile() {
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
               <span className="text-sm font-medium text-gray-700">
-                {profileQueryData.firstName && profileQueryData.lastName 
+                {profileQueryData?.firstName && profileQueryData?.lastName 
                   ? `${profileQueryData.firstName} ${profileQueryData.lastName}`
                   : user?.email
                 }
@@ -1287,7 +1309,7 @@ export default function CandidateProfile() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center space-x-4">
-                  {profileQueryData.profilePicture ? (
+                  {profileQueryData?.profilePicture ? (
                     <img src={profileQueryData.profilePicture} alt="Profile" className="h-20 w-20 rounded-full object-cover border" />
                   ) : (
                     <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">

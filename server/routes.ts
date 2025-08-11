@@ -1737,10 +1737,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Email templates
-  app.get('/api/email-templates', authenticateToken, requireRole('admin'), async (req: any, res) => {
+  // Email templates - Allow access for authenticated users (not just admins)
+  app.get('/api/email-templates', authenticateToken, async (req: any, res) => {
     try {
+      console.log('🔍 Fetching email templates for user:', req.user);
       const templates = await storage.getEmailTemplates();
+      console.log('📧 Found email templates:', templates);
       res.json(templates);
     } catch (error: unknown) {
       console.error('Error getting email templates:', error);
@@ -1750,6 +1752,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Server error', 
         error: errorMessage,
         details: errorDetails
+      });
+    }
+  });
+
+  // Test endpoint - no authentication required
+  app.get('/api/test-email-templates', async (req: any, res) => {
+    try {
+      console.log('🧪 Test endpoint: Fetching email templates');
+      const templates = await storage.getEmailTemplates();
+      console.log('📧 Test endpoint found templates:', templates);
+      res.json({
+        success: true,
+        count: templates.length,
+        templates: templates
+      });
+    } catch (error: unknown) {
+      console.error('Test endpoint error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
@@ -1770,6 +1792,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Server error', 
         error: errorMessage,
         details: errorDetails
+      });
+    }
+  });
+
+  // Send email endpoint
+  app.post('/api/send-email', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const { templateId, candidateId, adminId, subject, body } = req.body;
+      
+      if (!templateId || !candidateId || !adminId || !subject || !body) {
+        return res.status(400).json({ 
+          message: 'Missing required fields: templateId, candidateId, adminId, subject, body' 
+        });
+      }
+
+      // Get candidate data for validation (including email from user table)
+      const candidate = await storage.getCandidateWithProfile(candidateId);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate not found' });
+      }
+
+      // Debug: Log candidate data
+      console.log('📧 Candidate data for email:', {
+        id: candidate.id,
+        email: candidate.email,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        userId: candidate.userId
+      });
+
+      // Validate candidate email
+      if (!candidate.email) {
+        console.log('❌ Candidate email is missing!');
+        console.log('❌ Full candidate object:', JSON.stringify(candidate, null, 2));
+        return res.status(400).json({ 
+          message: 'Candidate email is missing or invalid',
+          candidateId: candidateId
+        });
+      }
+
+      console.log('✅ Candidate email found:', candidate.email);
+
+      // Use the subject and body from the request (already filled by frontend)
+      const emailSubject = subject;
+      const emailBody = body;
+
+      // Import Gmail service dynamically to avoid circular dependencies
+      const { sendEmail } = await import('./gmailService');
+      
+      // Send email via Gmail API
+      await sendEmail({
+        from: 'HR Department <noreply@nastp.com>',
+        to: candidate.email,
+        subject: emailSubject,
+        body: emailBody,
+      });
+
+      // Log the sent email
+      await storage.logSentEmail({
+        candidateId: candidateId,
+        templateId: templateId,
+        adminId: adminId,
+        subject: emailSubject,
+        body: emailBody,
+        recipientEmail: candidate.email,
+        status: 'sent'
+      });
+
+      res.json({ 
+        success: true, 
+        message: 'Email sent successfully',
+        recipient: candidate.email,
+        subject: emailSubject
+      });
+    } catch (error: unknown) {
+      console.error('Error sending email:', error);
+      
+      // Log failed email attempt
+      try {
+        await storage.logSentEmail({
+          candidateId: req.body.candidateId,
+          templateId: req.body.templateId,
+          adminId: req.body.adminId,
+          subject: 'Failed to send',
+          body: 'Email sending failed',
+          recipientEmail: req.body.recipientEmail || 'unknown',
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } catch (logError) {
+        console.error('Failed to log email error:', logError);
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Server error';
+      res.status(500).json({ 
+        message: 'Failed to send email', 
+        error: errorMessage
+      });
+    }
+  });
+
+  // Get sent emails history
+  app.get('/api/sent-emails', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const { candidateId } = req.query;
+      const emails = await storage.getSentEmails(candidateId ? parseInt(candidateId) : undefined);
+      res.json(emails);
+    } catch (error: unknown) {
+      console.error('Error getting sent emails:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Server error';
+      res.status(500).json({ 
+        message: 'Failed to get sent emails', 
+        error: errorMessage
       });
     }
   });

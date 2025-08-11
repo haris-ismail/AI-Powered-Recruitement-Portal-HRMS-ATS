@@ -17,7 +17,8 @@ import {
   Eye,
   Star,
   Video,
-  GraduationCap
+  GraduationCap,
+  BookOpen
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
 import React, { useEffect, useState } from "react";
@@ -230,7 +231,7 @@ export default function CandidateApplications() {
         {/* Sidebar */}
         <aside className="w-64 bg-primary shadow-sm min-h-screen border-r border-primary-foreground/10">
           <nav className="p-4 space-y-2">
-            <Link href="/candidate">
+            <Link href="/candidate/profile">
               <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
                 <User className="h-5 w-5" />
                 <span>My Profile</span>
@@ -246,6 +247,12 @@ export default function CandidateApplications() {
               <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary-foreground text-primary">
                 <FileText className="h-5 w-5" />
                 <span>My Applications</span>
+              </a>
+            </Link>
+            <Link href="/candidate/assessments">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+                <BookOpen className="h-5 w-5" />
+                <span>My Assessments</span>
               </a>
             </Link>
           </nav>

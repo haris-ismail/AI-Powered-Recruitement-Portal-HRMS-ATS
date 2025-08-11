@@ -130,7 +130,7 @@ export default function EmailComposePage() {
   }
 
   // Step 2: Draft and send
-  function handleSend() {
+  async function handleSend() {
     const to = candidate?.email || "";
     const subject = typeof selectedTemplate?.subject === "string"
       ? fillTemplate(selectedTemplate.subject, candidate)
@@ -144,8 +144,41 @@ export default function EmailComposePage() {
       return;
     }
 
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(gmailUrl, "_blank");
+    try {
+      // Get current user ID from localStorage or context
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (!user.id) {
+        alert("User not authenticated. Please log in again.");
+        return;
+      }
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          templateId: selectedTemplate.id,
+          candidateId: candidate.id,
+          adminId: user.id
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to send email');
+      }
+
+      const result = await response.json();
+      alert(`Email sent successfully to ${result.recipient}!`);
+      
+      // Optionally navigate back to pipeline
+      navigate("/admin/pipeline");
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   return (
@@ -165,7 +198,7 @@ export default function EmailComposePage() {
       </div>
       <div className="mt-4 flex justify-end space-x-2">
         <Button variant="ghost" onClick={() => navigate("/admin/pipeline")}>Cancel</Button>
-        <Button onClick={handleSend}>Send via Gmail</Button>
+        <Button onClick={handleSend}>Send Email</Button>
       </div>
     </div>
   );
