@@ -8,6 +8,7 @@ import { fetcher } from "@/lib/fetcher";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthMigration } from "@/lib/auth-migration";
 import { ChatbotWidget } from "@/components/ChatbotWidget";
+import { getCurrentUser, logout } from '@/lib/auth';
 import logo from "@/assets/NASTPLogo.png";
 
 interface AssessmentTemplate {
@@ -126,7 +127,7 @@ export default function CandidateAssessmentsPage() {
   };
 
   const handleLogout = async () => {
-    // Implement logout logic
+    await logout();
     window.location.href = '/login';
   };
 

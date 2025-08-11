@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { fetcher } from '@/lib/fetcher';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, logout } from '@/lib/auth';
 import { removeToken } from '@/lib/auth';
 
 import { 
@@ -68,8 +68,8 @@ export default function CandidateJobs() {
 
   const user = getCurrentUser();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [selectedExperience, setSelectedExperience] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [selectedExperience, setSelectedExperience] = useState("all");
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [applyingJobId, setApplyingJobId] = useState<number | null>(null);
   const [isApplying, setIsApplying] = useState(false);
@@ -119,13 +119,36 @@ export default function CandidateJobs() {
     window.location.href = '/login';
   };
 
+  // Get unique departments and experience levels from actual jobs data
+  const uniqueDepartments = [...new Set(jobs.map((job: Job) => job.department).filter(Boolean))];
+  const uniqueExperienceLevels = [...new Set(jobs.map((job: Job) => job.experienceLevel).filter(Boolean))];
+  
+  // Debug logging
+  console.log('Available departments:', uniqueDepartments);
+  console.log('Available experience levels:', uniqueExperienceLevels);
+  console.log('Current filter state:', { selectedDepartment, selectedExperience });
+
   const filteredJobs = jobs.filter((job: Job) => {
     const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       job.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
       job.location.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesDepartment = !selectedDepartment || job.department === selectedDepartment;
-    const matchesExperience = !selectedExperience || job.experienceLevel === selectedExperience;
+    const matchesDepartment = !selectedDepartment || selectedDepartment === "all" || job.department === selectedDepartment;
+    const matchesExperience = !selectedExperience || selectedExperience === "all" || job.experienceLevel === selectedExperience;
+
+    // Debug logging
+    if (job.id === 1) { // Log for first job to debug
+      console.log('Filter debug:', {
+        jobId: job.id,
+        jobDepartment: job.department,
+        selectedDepartment,
+        matchesDepartment,
+        jobExperience: job.experienceLevel,
+        selectedExperience,
+        matchesExperience,
+        matchesSearch
+      });
+    }
 
     return matchesSearch && matchesDepartment && matchesExperience && job.status === 'active';
   });
@@ -269,11 +292,9 @@ export default function CandidateJobs() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
-                    <SelectItem value="Engineering">Engineering</SelectItem>
-                    <SelectItem value="Design">Design</SelectItem>
-                    <SelectItem value="Product">Product</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                    <SelectItem value="Sales">Sales</SelectItem>
+                    {uniqueDepartments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={selectedExperience} onValueChange={setSelectedExperience}>
@@ -282,10 +303,9 @@ export default function CandidateJobs() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Levels</SelectItem>
-                    <SelectItem value="Entry Level">Entry Level</SelectItem>
-                    <SelectItem value="Mid Level">Mid Level</SelectItem>
-                    <SelectItem value="Senior Level">Senior Level</SelectItem>
-                    <SelectItem value="Lead Level">Lead Level</SelectItem>
+                    {uniqueExperienceLevels.map((level) => (
+                      <SelectItem key={level} value={level}>{level}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button onClick={() => {

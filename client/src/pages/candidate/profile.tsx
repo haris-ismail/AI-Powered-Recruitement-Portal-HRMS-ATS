@@ -858,8 +858,8 @@ export default function CandidateProfile() {
   // Add CNIC validation to handleProfileSubmit
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!/^\d{14}$/.test(profileData.cnic)) {
-      setError("CNIC must be exactly 14 digits");
+    if (!/^\d{13}$/.test(profileData.cnic)) {
+      setError("CNIC must be exactly 13 digits");
       return;
     }
     if (!user?.email) {
@@ -1306,9 +1306,9 @@ export default function CandidateProfile() {
                     id="cnic"
                     value={profileData.cnic}
                     onChange={(e) => setProfileData({ ...profileData, cnic: e.target.value.replace(/[^\d]/g, "") })}
-                    placeholder="12345678901234"
-                    maxLength={14}
-                    minLength={14}
+                    placeholder="1234567890123"
+                    maxLength={13}
+                    minLength={13}
                     disabled={!!profileData.cnic}
                   />
                 </div>

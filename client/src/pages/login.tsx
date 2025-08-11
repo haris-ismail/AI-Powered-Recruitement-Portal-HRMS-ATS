@@ -117,10 +117,10 @@ export default function Login() {
       return;
     }
 
-    if (!/^\d{14}$/.test(cnic)) {
+    if (!/^\d{13}$/.test(cnic)) {
       toast({
         title: "Registration failed",
-        description: "CNIC must be exactly 14 digits.",
+        description: "CNIC must be exactly 13 digits.",
         variant: "destructive",
       });
       setLoading(false);
@@ -234,10 +234,10 @@ export default function Login() {
                     id="signup-cnic"
                     name="cnic"
                     type="text"
-                    placeholder="12345678901234"
+                    placeholder="1234567890123"
                     required
                     className="form-input"
-                    maxLength={14}
+                    maxLength={13}
                   />
                   <label htmlFor="signup-password" className="form-label">Password</label>
                   <input

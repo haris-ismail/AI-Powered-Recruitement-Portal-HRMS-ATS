@@ -748,6 +748,11 @@ export class DatabaseStorage implements IStorage {
   async submitAssessment(attemptId: number, data: any): Promise<any> {
     console.log(`🚀 [ASSESSMENT SUBMISSION START] Attempt ID: ${attemptId}`);
     console.log(`📊 [INPUT DATA] Data received:`, JSON.stringify(data, null, 2));
+    console.log(`🔍 [INPUT DATA TYPES] Data types:`, {
+      answers: typeof data.answers,
+      answersIsArray: Array.isArray(data.answers),
+      answersKeys: data.answers ? Object.keys(data.answers) : 'undefined'
+    });
     
     return await db.transaction(async (tx) => {
       try {
@@ -777,8 +782,21 @@ export class DatabaseStorage implements IStorage {
           id: template.id,
           title: template.title,
           durationMinutes: template.durationMinutes,
-          passingScore: template.passingScore
+          passingScore: template.passingScore,
+          passingScoreType: typeof template.passingScore,
+          passingScoreRaw: template.passingScore
         });
+        
+        // CRITICAL DEBUG: Log the exact template data
+        console.log(`🔍 [TEMPLATE CRITICAL DEBUG] Raw template object:`, JSON.stringify(template, null, 2));
+        console.log(`🔍 [TEMPLATE CRITICAL DEBUG] Passing score analysis:`);
+        console.log(`   📊 Raw passingScore: ${template.passingScore}`);
+        console.log(`   📊 Type: ${typeof template.passingScore}`);
+        console.log(`   📊 Is null: ${template.passingScore === null}`);
+        console.log(`   📊 Is undefined: ${template.passingScore === undefined}`);
+        console.log(`   📊 Is NaN: ${isNaN(template.passingScore)}`);
+        console.log(`   📊 Converted to Number: ${Number(template.passingScore)}`);
+        console.log(`   📊 Converted type: ${typeof Number(template.passingScore)}`);
         
         // Enforce time limit
         const now = new Date();
@@ -798,6 +816,19 @@ export class DatabaseStorage implements IStorage {
         const questions = await tx.select().from(assessmentQuestions).where(eq(assessmentQuestions.templateId, attempt.templateId));
         console.log(`✅ [QUESTIONS FOUND] Found ${questions.length} questions`);
         
+        // Debug: Log all questions and their details
+        console.log(`🔍 [QUESTIONS DEBUG] All questions details:`, questions.map(q => ({
+          id: q.id,
+          questionText: q.questionText?.substring(0, 50) + '...',
+          questionType: q.questionType,
+          points: q.points,
+          pointsType: typeof q.points,
+          correctAnswers: q.correctAnswers,
+          correctAnswersType: typeof q.correctAnswers,
+          correctAnswersIsArray: Array.isArray(q.correctAnswers),
+          options: q.options
+        })));
+        
         let score = 0;
         let maxScore = 0;
         
@@ -805,8 +836,11 @@ export class DatabaseStorage implements IStorage {
         const answersToInsert = [];
         
         console.log(`📝 [SCORING PROCESS] Starting to score ${questions.length} questions`);
+        console.log(`🔍 [SCORING INIT] Initial values - score: ${score} (${typeof score}), maxScore: ${maxScore} (${typeof maxScore})`);
         
         for (const question of questions) {
+          const previousMaxScore = maxScore;
+          const previousScore = score;
           maxScore += question.points;
           const answer = data.answers?.[question.id];
           let isCorrect = false;
@@ -814,10 +848,12 @@ export class DatabaseStorage implements IStorage {
           
           console.log(`\n🔍 [QUESTION ${question.id}] Scoring question: "${question.questionText}"`);
           console.log(`   📋 Question Type: ${question.questionType}`);
-          console.log(`   📊 Points Available: ${question.points}`);
+          console.log(`   📊 Points Available: ${question.points} (${typeof question.points})`);
           console.log(`   💭 User Answer: ${JSON.stringify(answer)} (type: ${typeof answer})`);
           console.log(`   ✅ Correct Answers: ${JSON.stringify(question.correctAnswers)} (type: ${typeof question.correctAnswers})`);
           console.log(`   📦 Options: ${JSON.stringify(question.options)}`);
+          console.log(`   🔢 [SCORE TRACKING] Before this question - Score: ${previousScore}, MaxScore: ${previousMaxScore}`);
+          console.log(`   🔢 [SCORE TRACKING] After adding points - MaxScore: ${maxScore}`);
           
           // Score the answer
           if (answer !== undefined && answer !== null && answer !== "") {
@@ -836,7 +872,7 @@ export class DatabaseStorage implements IStorage {
               // Handle type mismatches
               if (Array.isArray(question.correctAnswers) && question.correctAnswers.length > 0) {
                 correctAnswerForComparison = question.correctAnswers[0];
-                console.log(`   🔄 [ARRAY HANDLING] Extracted first correct answer: ${correctAnswerForComparison}`);
+                console.log(`   🔄 [ARRAY HANDLING] Extracted first correct answer: ${correctAnswerForComparison} (${typeof correctAnswerForComparison})`);
               }
               
               // Convert both to strings for comparison
@@ -891,7 +927,7 @@ export class DatabaseStorage implements IStorage {
             if (isCorrect === true) {
               pointsEarned = question.points;
               score += question.points;
-              console.log(`   ✅ [CORRECT] Points earned: ${pointsEarned}, Running total: ${score}`);
+              console.log(`   ✅ [CORRECT] Points earned: ${pointsEarned} (${typeof pointsEarned}), Running total: ${score} (${typeof score})`);
             } else if (isCorrect === false) {
               console.log(`   ❌ [INCORRECT] Points earned: 0`);
             } else {
@@ -902,6 +938,7 @@ export class DatabaseStorage implements IStorage {
           }
           
           console.log(`   📊 [FINAL] Question ${question.id} - isCorrect: ${isCorrect}, pointsEarned: ${pointsEarned}`);
+          console.log(`   🔢 [SCORE TRACKING] After this question - Score: ${score}, MaxScore: ${maxScore}`);
           
           // Prepare answer for insertion
           const answerRecord = {
@@ -917,11 +954,28 @@ export class DatabaseStorage implements IStorage {
         }
         
         console.log(`\n📊 [SCORING SUMMARY] Final calculations:`);
-        console.log(`   📈 Total Score: ${score}`);
-        console.log(`   📈 Max Possible Score: ${maxScore}`);
-        console.log(`   📈 Score Percentage: ${maxScore > 0 ? ((score / maxScore) * 100).toFixed(2) : 0}%`);
-        console.log(`   🎯 Passing Score: ${template.passingScore}`);
-        console.log(`   ✅ Passed: ${score >= template.passingScore}`);
+        console.log(`   📈 Total Score: ${score} (${typeof score})`);
+        console.log(`   📈 Max Possible Score: ${maxScore} (${typeof maxScore})`);
+        console.log(`   🔢 [CALCULATION DEBUG] Raw calculation: (${score} / ${maxScore}) * 100`);
+        
+        const scorePercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+        console.log(`   🔢 [CALCULATION DEBUG] Score percentage calculation: ${score} / ${maxScore} = ${score / maxScore}, then * 100 = ${scorePercentage}`);
+        
+        // Ensure passingScore is treated as a number for comparison
+        const passingScoreForLog = Number(template.passingScore);
+        console.log(`   🎯 Passing Score Required: ${passingScoreForLog}% (${typeof passingScoreForLog})`);
+        console.log(`   🔢 [COMPARISON DEBUG] Raw comparison: ${scorePercentage} >= ${passingScoreForLog}`);
+        console.log(`   🔢 [COMPARISON DEBUG] Comparison result: ${scorePercentage >= passingScoreForLog}`);
+        console.log(`   ✅ Passed: ${scorePercentage >= passingScoreForLog}`);
+        
+        // CRITICAL DEBUG: Log the exact values and types
+        console.log(`🔍 [CRITICAL DEBUG] Values for pass/fail calculation:`);
+        console.log(`   📊 Score: ${score} (${typeof score})`);
+        console.log(`   📊 MaxScore: ${maxScore} (${typeof maxScore})`);
+        console.log(`   📊 ScorePercentage: ${scorePercentage} (${typeof scorePercentage})`);
+        console.log(`   📊 Template PassingScore: ${template.passingScore} (${typeof template.passingScore})`);
+        console.log(`   📊 Converted PassingScore: ${passingScoreForLog} (${typeof passingScoreForLog})`);
+        console.log(`   🔢 [CRITICAL COMPARISON] ${scorePercentage} >= ${passingScoreForLog} = ${scorePercentage >= passingScoreForLog}`);
         
         // Insert all answers
         if (answersToInsert.length > 0) {
@@ -939,11 +993,41 @@ export class DatabaseStorage implements IStorage {
         }
         
         // Update attempt with final results
-        const passed = score >= template.passingScore;
+        const finalScorePercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+        // Ensure passingScore is treated as a number for comparison
+        const passingScore = Number(template.passingScore);
+        const passed = finalScorePercentage >= passingScore;
+        
         console.log(`\n📝 [UPDATING ATTEMPT] Updating attempt ${attemptId} with final results`);
         console.log(`   📊 Final Score: ${score}/${maxScore}`);
+        console.log(`   📊 Score Percentage: ${finalScorePercentage.toFixed(2)}%`);
+        console.log(`   🎯 Passing Score Required: ${passingScore}%`);
+        console.log(`   🔢 [FINAL COMPARISON DEBUG] Final comparison: ${finalScorePercentage} >= ${passingScore} = ${passed}`);
         console.log(`   🎯 Passed: ${passed}`);
         console.log(`   ⏰ Completion Time: ${now.toISOString()}`);
+        
+        // FINAL CRITICAL DEBUG: Log the exact final values
+        console.log(`🔍 [FINAL CRITICAL DEBUG] Final pass/fail calculation:`);
+        console.log(`   📊 Final Score: ${score} (${typeof score})`);
+        console.log(`   📊 Final MaxScore: ${maxScore} (${typeof maxScore})`);
+        console.log(`   📊 Final ScorePercentage: ${finalScorePercentage} (${typeof finalScorePercentage})`);
+        console.log(`   📊 Final PassingScore: ${passingScore} (${typeof passingScore})`);
+        console.log(`   🔢 [FINAL CRITICAL COMPARISON] ${finalScorePercentage} >= ${passingScore} = ${passed}`);
+        console.log(`   🔢 [FINAL CRITICAL COMPARISON] Type check: ${typeof finalScorePercentage} >= ${typeof passingScore}`);
+        console.log(`   🔢 [FINAL CRITICAL COMPARISON] Raw values: ${finalScorePercentage} >= ${passingScore}`);
+        console.log(`   🔢 [FINAL CRITICAL COMPARISON] Result: ${passed}`);
+        
+        // Debug: Log the exact values being stored
+        console.log(`💾 [DATABASE UPDATE DEBUG] Values being stored:`, {
+          status: "completed",
+          completedAt: now,
+          score: score,
+          maxScore: maxScore,
+          passed: passed,
+          scoreType: typeof score,
+          maxScoreType: typeof maxScore,
+          passedType: typeof passed
+        });
         
         await tx.update(assessmentAttempts)
           .set({ 
@@ -966,6 +1050,13 @@ export class DatabaseStorage implements IStorage {
         };
         
         console.log(`🎉 [SUBMISSION COMPLETE] Final result:`, result);
+        console.log(`🔍 [FINAL RESULT DEBUG] Result object details:`, {
+          status: typeof result.status,
+          score: typeof result.score,
+          maxScore: typeof result.maxScore,
+          passed: typeof result.passed,
+          attemptId: typeof result.attemptId
+        });
         console.log(`🏁 [ASSESSMENT SUBMISSION END] Attempt ID: ${attemptId}`);
         
         return result;

@@ -234,7 +234,7 @@ export default function ResumeSearchPage() {
                   type="text"
                   name="cnic"
                   className="w-full border rounded px-3 py-2"
-                  placeholder="e.g. 12345678901234"
+                  placeholder="e.g. 1234567890123"
                   value={filters.cnic}
                   onChange={handleInputChange}
                 />

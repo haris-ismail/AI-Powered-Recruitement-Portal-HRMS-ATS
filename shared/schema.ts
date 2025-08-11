@@ -344,7 +344,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
 
 export const insertCandidateSchema = z.object({
   userId: z.number().optional(),
-  cnic: z.string().length(14, 'CNIC must be exactly 14 digits').regex(/^\d{14}$/, 'CNIC must be 14 digits'),
+  cnic: z.string().length(13, 'CNIC must be exactly 13 digits').regex(/^\d{13}$/, 'CNIC must be 13 digits'),
   profilePicture: z.string().optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
