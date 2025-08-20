@@ -49,8 +49,24 @@ export default function CandidateAssessmentsPage() {
   const [, navigate] = useLocation();
   const { user, loading: authLoading } = useAuthMigration();
   
+  // Fetch applications to trigger refetch when they change
+  const { data: applications = [] } = useQuery({
+    queryKey: ['applications'],
+    queryFn: async () => {
+      try {
+        return await fetcher('/applications');
+      } catch (err) {
+        console.error('Error fetching applications:', err);
+        return [];
+      }
+    },
+    refetchOnWindowFocus: false,
+    retry: false,
+    enabled: !!user && !authLoading,
+  });
+
   const { data: assessments = [], isLoading, error } = useQuery({
-    queryKey: ['candidateAssessments'],
+    queryKey: ['candidateAssessments', applications.length], // Include applications count to trigger refetch
     queryFn: async () => {
       console.log('Fetching candidate assessments...');
       console.log('User:', user);
@@ -131,17 +147,17 @@ export default function CandidateAssessmentsPage() {
 
   const handleStartAssessment = async (templateId: number, jobId: number, attemptId?: number) => {
     try {
-      let url = `/api/assessments/${templateId}/start`;
-      const params = new URLSearchParams();
+      const url = `/api/assessments/start/${templateId}`;
       
-      if (attemptId) {
-        params.append('attemptId', attemptId.toString());
-      }
+      const requestBody: any = {};
       if (jobId) {
-        params.append('jobId', jobId.toString());
+        requestBody.jobId = jobId;
+      }
+      if (attemptId) {
+        requestBody.attemptId = attemptId;
       }
       
-      url = `${url}?${params.toString()}`;
+      console.log('🔍 Starting assessment with:', { templateId, jobId, attemptId, url, requestBody });
       
       const response = await fetch(url, {
         method: 'POST',
@@ -149,19 +165,27 @@ export default function CandidateAssessmentsPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({})
+        body: JSON.stringify(requestBody)
       });
+      
+      console.log('🔍 Assessment start response status:', response.status);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to start assessment');
+        console.error('❌ Assessment start error:', errorData);
+        throw new Error(errorData.message || `Failed to start assessment (${response.status})`);
       }
       
       const data = await response.json();
-      navigate(`/assessment/${templateId}?attemptId=${data.attemptId}${jobId ? `&jobId=${jobId}` : ''}`);
+      console.log('✅ Assessment start success:', data);
+      
+      // Navigate to assessment page
+      const assessmentUrl = `/assessment/${templateId}?attemptId=${data.attemptId}${jobId ? `&jobId=${jobId}` : ''}`;
+      console.log('🔍 Navigating to:', assessmentUrl);
+      navigate(assessmentUrl);
     } catch (err) {
-      console.error('Error starting assessment:', err);
-      // Handle error (e.g., show toast notification)
+      console.error('❌ Error starting assessment:', err);
+      alert(`Failed to start assessment: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -300,9 +324,20 @@ export default function CandidateAssessmentsPage() {
           )}
 
           <div className="mb-8">
-            <div className="flex items-center space-x-3 mb-2">
-              <BookOpen className="h-8 w-8 text-primary" />
-              <h1 className="text-3xl font-bold text-gray-900">My Assessments</h1>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-3">
+                <BookOpen className="h-8 w-8 text-primary" />
+                <h1 className="text-3xl font-bold text-gray-900">My Assessments</h1>
+              </div>
+              <Button 
+                onClick={() => window.location.reload()} 
+                variant="outline" 
+                size="sm"
+                className="flex items-center space-x-2"
+              >
+                <Loader2 className="h-4 w-4" />
+                <span>Refresh</span>
+              </Button>
             </div>
             <p className="text-gray-600 text-lg">Complete these assessments to proceed with your job applications</p>
           </div>
@@ -334,12 +369,26 @@ export default function CandidateAssessmentsPage() {
                     You don't have any pending assessments at the moment. 
                     Complete your job applications to receive assessment invitations.
                   </p>
-                  <Link href="/candidate/jobs">
-                    <Button className="mt-4">
-                      <Briefcase className="h-4 w-4 mr-2" />
-                      Browse Jobs
-                    </Button>
-                  </Link>
+                  <div className="mt-4 space-y-2">
+                    <Link href="/candidate/jobs">
+                      <Button className="mr-2">
+                        <Briefcase className="h-4 w-4 mr-2" />
+                        Browse Jobs
+                      </Button>
+                    </Link>
+                    <Link href="/candidate/applications">
+                      <Button variant="outline">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Check Applications
+                      </Button>
+                    </Link>
+                  </div>
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <strong>Note:</strong> If you recently applied for a job with "Apply Later", 
+                      your assessment may take a moment to appear. Try refreshing the page or check your applications.
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>

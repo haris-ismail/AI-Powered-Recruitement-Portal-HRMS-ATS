@@ -48,6 +48,32 @@ interface Profile {
   firstName: string;
   lastName: string;
   email: string;
+  dateOfBirth?: string;
+  apartment?: string;
+  street?: string;
+  area?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  cnic?: string;
+  resumeUrl?: string;
+  motivationLetter?: string;
+  education?: Array<{
+    degree: string;
+    institution: string;
+    fromDate: string;
+    toDate: string;
+  }>;
+  experience?: Array<{
+    company: string;
+    role: string;
+    fromDate: string;
+    toDate: string;
+  }>;
+  projects?: Array<{
+    title: string;
+    description: string;
+  }>;
 }
 
 interface Application {
@@ -140,6 +166,14 @@ export default function CandidateJobs() {
   const handleApply = async (jobId: string | number, templateId: string | null) => {
     try {
       setApplyingJobId(Number(jobId));
+      
+      // Additional safety check - ensure job is still active
+      const job = jobs.find((j: Job) => j.id === Number(jobId));
+      if (!job || job.status !== 'active') {
+        alert('This job is no longer available for applications.');
+        return;
+      }
+      
       console.log('Job ID:', jobId, 'Received assessmentTemplateId:', templateId);
       const templateIdStr = (templateId ?? '').toString().trim();
       console.log('Processed assessmentTemplateId:', templateIdStr);
@@ -178,6 +212,14 @@ export default function CandidateJobs() {
     if (!pendingAssessmentJob) return;
     
     try {
+      // Additional safety check - ensure job is still active
+      const job = jobs.find((j: Job) => j.id === pendingAssessmentJob.jobId);
+      if (!job || job.status !== 'active') {
+        alert('This job is no longer available for applications.');
+        setShowAssessmentModal(false);
+        return;
+      }
+      
       setShowAssessmentModal(false);
       // Apply without assessment - will be pending
       console.log('User chose to apply without assessment - marking as pending');
@@ -202,6 +244,10 @@ export default function CandidateJobs() {
 
       // Refetch applications list so Apply button becomes Withdraw etc.
       await refetchApplications();
+      
+      // Invalidate assessments query so pending assessments show up
+      queryClient.invalidateQueries({ queryKey: ['candidateAssessments'] });
+      
       alert('Application submitted successfully.');
     } catch (err: any) {
       console.error('Error submitting application:', err);
@@ -228,8 +274,46 @@ export default function CandidateJobs() {
     }
   };
 
-  const isProfileComplete = (profile: Profile) => {
-    return profile.firstName && profile.lastName && profile.email;
+  const isProfileComplete = (profile: any) => {
+    // Define required fields for completeness
+    const basicInfoComplete = (
+      profile?.firstName &&
+      profile?.lastName &&
+      profile?.dateOfBirth &&
+      profile?.apartment &&
+      profile?.street &&
+      profile?.area &&
+      profile?.city &&
+      profile?.province &&
+      profile?.postalCode &&
+      profile?.cnic &&
+      profile?.resumeUrl &&
+      profile?.motivationLetter
+    );
+
+    // At least one education entry is required
+    const educationComplete = profile?.education && 
+      Array.isArray(profile.education) && 
+      profile.education.length > 0 &&
+      profile.education.every((edu: any) => 
+        edu.degree && edu.institution && edu.fromDate && edu.toDate
+      );
+
+    // Experience and projects are optional (new graduates may not have them)
+    // But if they exist, they should be properly filled
+    const experienceValid = !profile?.experience || 
+      (Array.isArray(profile.experience) && 
+       profile.experience.every((exp: any) => 
+         !exp.company || (exp.company && exp.role && exp.fromDate && exp.toDate)
+       ));
+
+    const projectsValid = !profile?.projects || 
+      (Array.isArray(profile.projects) && 
+       profile.projects.every((proj: any) => 
+         !proj.title || (proj.title && proj.description)
+       ));
+
+    return basicInfoComplete && educationComplete && experienceValid && projectsValid;
   };
 
   const selectedJob = jobs?.find((job: any) => job.id === selectedJobId);

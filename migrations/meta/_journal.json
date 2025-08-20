@@ -8,6 +8,83 @@
       "when": 1752147206972,
       "tag": "0000_nostalgic_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1752147206973,
+      "tag": "0001_add_cnic_profile_picture_skills",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1752147206974,
+      "tag": "0002_add_resume_text_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1752147206975,
+      "tag": "0003_add_search_functionality",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1752147206976,
+      "tag": "0004_add_ai_score_to_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1752147206977,
+      "tag": "0005_add_analytics_kpi_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1752147206978,
+      "tag": "0006_add_company_info_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1752147206979,
+      "tag": "0007_add_social_links_and_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1752147206980,
+      "tag": "0008_add_description_to_experience",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1752147206981,
+      "tag": "0009_rename_candidate_social_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1752147206982,
+      "tag": "0010_rename_social_media_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1752147206983,
+      "tag": "0011_add_sent_emails_table",
+      "breakpoints": true
     }
   ]
 }

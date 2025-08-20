@@ -8,6 +8,7 @@ import { fetcher } from "@/lib/fetcher";
 import { getCurrentUser, removeToken } from "@/lib/auth";
 import logo from "@/assets/NASTPLogo.png";
 import { ChatbotWidget } from "@/components/ChatbotWidget";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Result {
   score: number;
@@ -34,6 +35,7 @@ export default function AssessmentResultsPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const [user, setUser] = useState<any>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const loadUser = async () => {
@@ -95,6 +97,11 @@ export default function AssessmentResultsPage() {
         
         setResult(response);
         console.log(`✅ [RESULTS PAGE] Results set successfully`);
+        
+        // Invalidate assessments query so pending assessments are refreshed
+        queryClient.invalidateQueries({ queryKey: ['candidateAssessments'] });
+        queryClient.invalidateQueries({ queryKey: ['applications'] });
+        
       } catch (err: any) {
         console.error(`❌ [RESULTS PAGE] Error fetching assessment results:`, err);
         console.error(`❌ [RESULTS PAGE] Error type:`, typeof err);
@@ -300,54 +307,33 @@ export default function AssessmentResultsPage() {
               </CardContent>
             </Card>
 
-            {/* Question Results */}
+            {/* Assessment Summary - No Detailed Breakdown */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl">Question Breakdown</CardTitle>
+                <CardTitle className="text-xl">Assessment Summary</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {result.questions.map((question, index) => (
-                    <div key={question.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="bg-gray-100 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">
-                            {index + 1}
-                          </span>
-                          <span className="font-medium text-gray-900">Question {index + 1}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge 
-                            variant="outline" 
-                            className={question.isCorrect ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}
-                          >
-                            {question.isCorrect ? 'Correct' : 'Incorrect'}
-                          </Badge>
-                          <span className="text-sm text-gray-600">
-                            {question.pointsEarned} pts
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <p className="text-gray-700 mb-3">{question.questionText}</p>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-700">Your Answer:</span>
-                          <p className="text-gray-600 mt-1">{question.yourAnswer || 'No answer provided'}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">Correct Answer:</span>
-                          <p className="text-gray-600 mt-1">
-                            {Array.isArray(question.correctAnswers) 
-                              ? question.correctAnswers.join(', ') 
-                              : question.correctAnswers || 'N/A'
-                            }
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="text-center py-8">
+                  <div className="mb-4">
+                    {result.passed ? (
+                      <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto" />
+                    ) : (
+                      <XCircle className="h-16 w-16 text-red-600 mx-auto" />
+                    )}
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    {result.passed ? 'Congratulations! You Passed!' : 'Assessment Completed'}
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    {result.passed 
+                      ? 'You have successfully completed this assessment and met the passing criteria.'
+                      : 'You have completed this assessment. Keep practicing to improve your score.'
+                    }
+                  </p>
+                  <div className="text-sm text-gray-500">
+                    <p>Your detailed performance has been recorded.</p>
+                    <p>Individual question results are not displayed to maintain assessment integrity.</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>

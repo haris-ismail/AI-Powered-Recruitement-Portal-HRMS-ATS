@@ -107,7 +107,7 @@ async function seedAnalyticsDemo() {
   // Insert candidates
   const [cand1] = await db.insert(candidates).values({
     userId: 2,
-    cnic: "12345-1234567-1",
+    cnic: "1234512345671",
     firstName: "Ali",
     lastName: "Khan",
     city: "Lahore",
@@ -115,7 +115,7 @@ async function seedAnalyticsDemo() {
   }).returning();
   const [cand2] = await db.insert(candidates).values({
     userId: 3,
-    cnic: "98765-7654321-0",
+    cnic: "9876576543210",
     firstName: "Sara",
     lastName: "Ahmed",
     city: "Karachi",

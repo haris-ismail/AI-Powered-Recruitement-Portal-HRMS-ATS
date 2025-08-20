@@ -8,6 +8,7 @@ import Login from "@/pages/login";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminJobs from "@/pages/admin/jobs";
 import AdminPipeline from "@/pages/admin/pipeline";
+
 import AdminEmailTemplates from "@/pages/admin/email-templates";
 import AssessmentTemplatesPage from "@/pages/admin/assessment-templates";
 import AssessmentAnalyticsPage from "@/pages/admin/assessment-analytics";
@@ -70,6 +71,7 @@ function Router() {
           <ResumeSearchPage />
         </AuthGuard>
       </Route>
+
       <Route path="/admin">
         <AuthGuard requiredRole="admin">
           <AdminDashboard />

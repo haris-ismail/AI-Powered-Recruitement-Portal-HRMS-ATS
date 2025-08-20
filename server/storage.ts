@@ -12,7 +12,7 @@ import {
   offers, jobCosts, type InsertOffer, type Offer, type InsertJobCost, type JobCost
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, like, ilike, or, sql, count, isNull } from "drizzle-orm";
+import { eq, and, desc, like, ilike, or, sql, count, isNull, ne } from "drizzle-orm";
 
 // Only method signatures in IStorage
 export interface IStorage {
@@ -36,10 +36,12 @@ export interface IStorage {
   updateJobTemplate(id: number, template: Partial<InsertJobTemplate>): Promise<JobTemplate>;
   deleteJobTemplate(id: number): Promise<void>;
   getJobs(): Promise<Job[]>;
+  getAllJobs(): Promise<Job[]>;
   getJob(id: number): Promise<Job | undefined>;
   getJobById(jobId: number): Promise<Job | null>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: number, job: Partial<InsertJob>): Promise<Job>;
+  deleteJob(id: number): Promise<void>;
   getApplications(): Promise<Application[]>;
   getApplicationsByJob(jobId: number): Promise<Application[]>;
   getApplicationsByCandidate(candidateId: number): Promise<Application[]>;
@@ -123,7 +125,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCandidate(userId: number): Promise<Candidate | undefined> {
-    return await db.select().from(candidates).where(eq(candidates.userId, userId)).then(rows => rows[0]);
+    console.log('🔍 getCandidate called with userId:', userId);
+    const result = await db.select().from(candidates).where(eq(candidates.userId, userId)).then(rows => rows[0]);
+    console.log('🔍 getCandidate result:', result);
+    return result;
   }
 
   async getCandidateById(id: number): Promise<Candidate | undefined> {
@@ -195,7 +200,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getJobs(): Promise<Job[]> {
-    return await db.select().from(jobs);
+    return await db.select().from(jobs).where(eq(jobs.status, 'active'));
+  }
+
+  async getAllJobs(): Promise<Job[]> {
+    return await db.select().from(jobs).where(ne(jobs.status, 'deleted'));
   }
 
   async getJob(id: number): Promise<Job | undefined> {
@@ -217,6 +226,10 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async deleteJob(id: number): Promise<void> {
+    await db.delete(jobs).where(eq(jobs.id, id));
+  }
+
   async getApplications(): Promise<Application[]> {
     return await db.select().from(applications);
   }
@@ -226,7 +239,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getApplicationsByCandidate(candidateId: number): Promise<Application[]> {
-    return await db.select().from(applications).where(eq(applications.candidateId, candidateId));
+    console.log('🔍 getApplicationsByCandidate called with candidateId:', candidateId);
+    const result = await db.select().from(applications).where(eq(applications.candidateId, candidateId));
+    console.log('🔍 getApplicationsByCandidate result:', result);
+    return result;
   }
 
   async createApplication(application: InsertApplication): Promise<Application> {
@@ -731,7 +747,11 @@ export class DatabaseStorage implements IStorage {
         );
         
         // Only include assessments that don't have a completed attempt
-        if (!existingAttempt || existingAttempt.status === 'in_progress') {
+        // Exclude completed, failed, or expired assessments
+        if (!existingAttempt || 
+            (existingAttempt.status !== 'completed' && 
+             existingAttempt.status !== 'failed' && 
+             existingAttempt.status !== 'expired') || existingAttempt.status === 'in_progress') {
           const template = await this.getAssessmentTemplate(assessment.templateId);
           if (template) {
             assessmentsWithTemplates.push({
@@ -753,6 +773,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async startAssessment(templateId: number, candidateId: number, jobId?: number | undefined): Promise<any> {
+    console.log('🔍 startAssessment called with:', { templateId, candidateId, jobId });
+    
     // Prevent multiple attempts
     const existing = await db.select().from(assessmentAttempts)
       .where(and(
@@ -762,9 +784,16 @@ export class DatabaseStorage implements IStorage {
         // Only allow if not completed/expired
         eq(assessmentAttempts.status, "in_progress")
       ));
+    
+    console.log('🔍 Existing attempts found:', existing);
+    
     if (existing.length > 0) {
+      console.log('🔍 Returning existing attempt:', existing[0]);
       return { attemptId: existing[0].id, status: existing[0].status };
     }
+    
+    console.log('🔍 Creating new assessment attempt...');
+    
     // Create new attempt
     const [attempt] = await db.insert(assessmentAttempts).values({
       candidateId,
@@ -774,6 +803,8 @@ export class DatabaseStorage implements IStorage {
       status: "in_progress",
       createdAt: new Date(),
     }).returning();
+    
+    console.log('🔍 New attempt created:', attempt);
     return { attemptId: attempt.id, status: attempt.status };
   }
 
@@ -993,6 +1024,26 @@ export class DatabaseStorage implements IStorage {
         
         console.log(`✅ [ATTEMPT UPDATED] Successfully updated attempt status`);
         
+        // Update application assessment status if this assessment was for a job
+        if (attempt.jobId) {
+          console.log(`🔍 [APPLICATION UPDATE] Updating application assessment status for job ${attempt.jobId}`);
+          try {
+            await tx.update(applications)
+              .set({ 
+                assessmentStatus: passed ? "completed" : "failed",
+                updatedAt: now
+              })
+              .where(and(
+                eq(applications.candidateId, attempt.candidateId),
+                eq(applications.jobId, attempt.jobId)
+              ));
+            console.log(`✅ [APPLICATION UPDATED] Application assessment status updated to: ${passed ? "completed" : "failed"}`);
+          } catch (error) {
+            console.error(`❌ [ERROR] Failed to update application assessment status:`, error);
+            // Don't fail the entire transaction for this
+          }
+        }
+        
         const result = { 
           status: "completed", 
           score, 
@@ -1091,33 +1142,55 @@ export class DatabaseStorage implements IStorage {
 
   // Assessment Analytics
   async getAssessmentAnalytics(): Promise<any> {
-    // Average score and pass rate per template
+    // Average score and pass rate per template with template titles
     const avgScores = await db.execute(`
-      SELECT template_id, AVG(score) as avg_score, COUNT(*) FILTER (WHERE passed) * 100.0 / NULLIF(COUNT(*),0) as pass_rate
-      FROM assessment_attempts
-      WHERE status = 'completed'
-      GROUP BY template_id
+      SELECT 
+        aa.template_id, 
+        at.title as template_title,
+        COALESCE(AVG(CASE WHEN aa.max_score > 0 THEN (aa.score::float / aa.max_score::float) * 100 ELSE 0 END), 0) as avg_score_percentage,
+        CASE 
+          WHEN COUNT(*) = 0 THEN 0
+          ELSE COALESCE(COUNT(*) FILTER (WHERE aa.passed = true) * 100.0 / COUNT(*), 0)
+        END as pass_rate
+      FROM assessment_attempts aa
+      JOIN assessment_templates at ON aa.template_id = at.id
+      WHERE aa.status = 'completed'
+      GROUP BY aa.template_id, at.title
+      ORDER BY aa.template_id
     `);
+    
     // Per-question difficulty
     const questionDifficulty = await db.execute(`
-      SELECT question_id, AVG(is_correct::int) as correct_pct
+      SELECT question_id, COALESCE(AVG(CASE WHEN is_correct = true THEN 1 ELSE 0 END), 0) as correct_pct
       FROM assessment_answers
       GROUP BY question_id
     `);
-    // Candidate trends (score over time)
+    
+    // Candidate trends (score over time) with percentage scores
     const candidateTrends = await db.execute(`
-      SELECT candidate_id, started_at, score
+      SELECT 
+        candidate_id, 
+        started_at, 
+        COALESCE(CASE WHEN max_score > 0 THEN (score::float / max_score::float) * 100 ELSE 0 END, 0) as score_percentage
       FROM assessment_attempts
-      WHERE status = 'completed'
+      WHERE status = 'completed' AND score IS NOT NULL AND max_score IS NOT NULL
       ORDER BY candidate_id, started_at
     `);
-    // Assessment/job correlation
+    
+    // Assessment/job correlation with percentage scores and template titles
     const jobCorrelation = await db.execute(`
-      SELECT aa.template_id, aa.job_id, aa.score, app.status as application_status
+      SELECT 
+        aa.template_id, 
+        at.title as template_title,
+        aa.job_id, 
+        COALESCE(CASE WHEN aa.max_score > 0 THEN (aa.score::float / aa.max_score::float) * 100 ELSE 0 END, 0) as score_percentage,
+        app.status as application_status
       FROM assessment_attempts aa
+      JOIN assessment_templates at ON aa.template_id = at.id
       JOIN applications app ON aa.candidate_id = app.candidate_id AND aa.job_id = app.job_id
-      WHERE aa.status = 'completed'
+      WHERE aa.status = 'completed' AND aa.score IS NOT NULL AND aa.max_score IS NOT NULL
     `);
+    
     return {
       avgScores: avgScores.rows || avgScores,
       questionDifficulty: questionDifficulty.rows || questionDifficulty,

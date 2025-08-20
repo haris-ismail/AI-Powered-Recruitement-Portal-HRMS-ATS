@@ -208,10 +208,10 @@ export default function Login() {
       return;
     }
 
-    if (!/^\d{14}$/.test(cnic)) {
+    if (!/^\d{13}$/.test(cnic)) {
       toast({
         title: "Registration failed",
-        description: "CNIC must be exactly 14 digits.",
+        description: "CNIC must be exactly 13 digits.",
         variant: "destructive",
       });
       setLoading(false);
@@ -321,42 +321,33 @@ export default function Login() {
                     style={{ width: '100%' }}
                   />
                   <label htmlFor="signup-cnic" className="form-label">CNIC</label>
-                  <input
-                    id="signup-cnic"
-                    name="cnic"
-                    type="text"
-                    placeholder="12345678901234"
-                    required
-                    className="form-input"
-                    maxLength={14}
-                  />
-                  <label htmlFor="signup-password" className="form-label">Password</label>
-                  <input
-                    id="signup-password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                    className="form-input"
-                  />
-                  <label htmlFor="signup-confirm-password" className="form-label">Confirm Password</label>
-                  <input
-                    id="signup-confirm-password"
-                    name="confirmPassword"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                    className="form-input"
-                  />
-                  <label htmlFor="signup-cnic" className="form-label">CNIC</label>
-                  <input
-                    id="signup-cnic"
-                    name="cnic"
-                    type="text"
-                    placeholder="12345-6789012-3"
-                    required
-                    className="form-input"
-                  />
+                   <input
+                     id="signup-cnic"
+                     name="cnic"
+                     type="text"
+                     placeholder="1234567890123"
+                     required
+                     className="form-input"
+                     maxLength={13}
+                   />
+                   <label htmlFor="signup-password" className="form-label">Password</label>
+                   <input
+                     id="signup-password"
+                     name="password"
+                     type="password"
+                     placeholder="••••••••"
+                     required
+                     className="form-input"
+                   />
+                   <label htmlFor="signup-confirm-password" className="form-label">Confirm Password</label>
+                   <input
+                     id="signup-confirm-password"
+                     name="confirmPassword"
+                     type="password"
+                     placeholder="••••••••"
+                     required
+                     className="form-input"
+                   />
                   <div className="forgot-password" style={{ visibility: 'hidden' }}>
                     <a>Spacer</a>
                   </div>

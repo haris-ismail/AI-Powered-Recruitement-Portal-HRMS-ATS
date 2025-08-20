@@ -280,6 +280,18 @@ export default function ResumeSearchPage() {
                 <span>Assessment Templates</span>
               </a>
             </Link>
+            <Link href="/admin/assessment-categories">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Assessment Categories</span>
+              </a>
+            </Link>
+            <Link href="/admin/assessment-analytics">
+              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+                <BarChart3 className="h-5 w-5" />
+                <span>Assessment Analytics</span>
+              </a>
+            </Link>
           </nav>
         </aside>
         {/* Main Content */}
@@ -459,7 +471,7 @@ export default function ResumeSearchPage() {
                           </div>
 
                           {/* Projects Preview */}
-                          <div>
+                    <div>
                             <div className="flex items-center gap-2 mb-2">
                               <Layers className="h-4 w-4 text-gray-600" />
                               <span className="text-sm font-medium text-gray-700">Recent Projects</span>
@@ -477,7 +489,7 @@ export default function ResumeSearchPage() {
                               <span className="text-gray-400 text-sm">No projects listed</span>
                             )}
                           </div>
-                        </div>
+                    </div>
 
                         <div className="flex-shrink-0 flex flex-col gap-2">
                           <Button
@@ -498,7 +510,7 @@ export default function ResumeSearchPage() {
                             </Button>
                           )}
                         </div>
-                      </div>
+                    </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -617,9 +629,9 @@ export default function ResumeSearchPage() {
                             </a>
                           </div>
                         )}
-                      </div>
-                    </div>
+                </div>
                   </div>
+                </div>
 
                   {/* Resume Download */}
                   {selectedCandidate.resumeUrl && (

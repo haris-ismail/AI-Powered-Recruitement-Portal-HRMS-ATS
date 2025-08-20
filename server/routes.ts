@@ -8,7 +8,7 @@ import path from "path";
 import { insertUserSchema, insertCandidateSchema, insertEducationSchema, insertExperienceSchema, insertJobSchema, insertJobTemplateSchema, insertApplicationSchema, insertEmailTemplateSchema, insertSkillSchema, insertProjectSchema, type SearchFilters, candidates } from "@shared/schema";
 import { z } from "zod";
 import { spawn } from "child_process";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, or } from "drizzle-orm";
 import { db } from "./db";
 import { applications, offers, jobCosts, users } from "@shared/schema";
 import crypto from "crypto";
@@ -430,11 +430,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'User with this email already exists' });
       }
 
-      // Check CNIC uniqueness
+      // Check CNIC validation and uniqueness
       const cnic = req.body.cnic;
       if (!cnic) {
         console.log('Registration failed: CNIC is required');
         return res.status(400).json({ message: 'CNIC is required' });
+      }
+      
+      // Validate CNIC format (exactly 13 digits)
+      if (!/^\d{13}$/.test(cnic)) {
+        console.log('Registration failed: CNIC must be exactly 13 digits', { cnic });
+        return res.status(400).json({ message: 'CNIC must be exactly 13 digits' });
       }
       
       const existingCnic = await storage.getCandidateByCnic(cnic);
@@ -676,9 +682,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : null;
       
       console.log('🔍 [PROFILE UPDATE] Final data for database:', JSON.stringify(profileData, null, 2));
-      // If CNIC is being updated, check uniqueness
+      // If CNIC is being updated, validate format and check uniqueness
       if (profileData.cnic && profileData.cnic !== candidate.cnic) {
-        console.log('🔍 [PROFILE UPDATE] Checking CNIC uniqueness:', profileData.cnic);
+        console.log('🔍 [PROFILE UPDATE] Checking CNIC format and uniqueness:', profileData.cnic);
+        
+        // Validate CNIC format (exactly 13 digits)
+        if (!/^\d{13}$/.test(profileData.cnic)) {
+          console.log('❌ [PROFILE UPDATE] CNIC must be exactly 13 digits:', profileData.cnic);
+          return res.status(400).json({ message: 'CNIC must be exactly 13 digits' });
+        }
+        
         const existingCnic = await storage.getCandidateByCnic(profileData.cnic);
         if (existingCnic) {
           console.log('❌ [PROFILE UPDATE] CNIC already exists:', profileData.cnic);
@@ -1000,6 +1013,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job routes
   app.get('/api/jobs', async (req, res) => {
     try {
+      // Check if user is authenticated and is admin
+      const token = req.cookies?.jwt_token || req.headers['authorization']?.split(' ')[1];
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          if (decoded.role === 'admin') {
+            // Admin gets all jobs (except deleted)
+            const jobs = await storage.getAllJobs();
+            res.json(jobs);
+            return;
+          }
+        } catch (err) {
+          // Token invalid, continue to public endpoint
+        }
+      }
+      
+      // Public endpoint - only active jobs
       const jobs = await storage.getJobs();
       res.json(jobs);
     } catch (error: unknown) {
@@ -1058,6 +1088,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid input', errors: error.errors });
       }
+      res.status(500).json({ message: 'Server error' });
+    }
+  });
+
+  app.delete('/api/jobs/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      
+      // Check if job exists
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: 'Job not found' });
+      }
+      
+      // Check if job is already deleted
+      if (job.status === 'deleted') {
+        return res.status(400).json({ message: 'Job is already deleted' });
+      }
+      
+      // Soft delete the job (mark as deleted)
+      await storage.deleteJob(jobId);
+      res.status(200).json({ message: 'Job deleted successfully' });
+    } catch (error: unknown) {
+      console.error('Job delete error:', error);
       res.status(500).json({ message: 'Server error' });
     }
   });
@@ -1237,11 +1291,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const applications = await storage.getApplications();
         return res.json(applications);
       } else {
+        console.log('🔍 Application creation - User ID from token:', req.user.id);
         const candidate = await storage.getCandidate(req.user.id);
-        console.log('Candidate fetched:', candidate);
+        console.log('🔍 Candidate fetched:', candidate);
         if (!candidate) {
+          console.log('❌ No candidate found for user ID:', req.user.id);
           return res.status(404).json({ message: 'Profile not found' });
         }
+        console.log('🔍 Using candidate ID for application:', candidate.id);
 
         // Check if candidate profile is complete before allowing job application
         const profile = await storage.getCandidateWithProfile(candidate.id);
@@ -1289,6 +1346,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           candidateId: candidate.id
         });
         console.log('Application data to create:', applicationData);
+
+        // Check if the job is active before allowing application
+        const job = await storage.getJob(applicationData.jobId);
+        if (!job) {
+          return res.status(404).json({ message: 'Job not found' });
+        }
+        if (job.status !== 'active') {
+          return res.status(400).json({ message: 'Cannot apply to inactive job' });
+        }
 
         const application = await storage.createApplication(applicationData);
         console.log('Application created:', application);
@@ -1446,7 +1512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/applications/:id', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const applicationId = parseInt(req.params.id);
-      const { status } = req.body;
+      const { status, source } = req.body;
       
       if (!status) {
         return res.status(400).json({ message: 'Status is required' });
@@ -1458,11 +1524,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid status value' });
       }
       
-      // Update application status
-      await storage.updateApplication(applicationId, { status });
+      // Prepare update data
+      const updateData = { status };
+      
+      // Set hiredAt when status is changed to hired or onboarded
+      if (status === 'hired' || status === 'onboarded') {
+        updateData.hiredAt = new Date();
+        console.log('🔍 Setting hiredAt for application', applicationId, 'to', updateData.hiredAt);
+      }
+      
+      // Set source if provided
+      if (source) {
+        updateData.source = source;
+        console.log('🔍 Setting source for application', applicationId, 'to', source);
+      }
+      
+      // Update application
+      await storage.updateApplication(applicationId, updateData);
       
       // Fetch updated application
       const updatedApplication = await storage.getApplication(applicationId);
+      
+      console.log('🔍 Application updated:', { id: applicationId, status, hiredAt: updateData.hiredAt, source: updateData.source });
       
       res.json(updatedApplication);
     } catch (error) {
@@ -2510,36 +2593,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Candidate Pending Assessments ---
   app.get('/api/candidate/pending-assessments', authenticateToken, async (req: any, res) => {
     try {
-      const candidateId = req.user.id;
-      if (!candidateId) {
-        return res.status(400).json({ message: 'Candidate ID is required' });
+      const userId = req.user.id;
+      console.log('🔍 Pending assessments requested for user ID:', userId);
+      
+      if (!userId) {
+        return res.status(400).json({ message: 'User ID is required' });
       }
 
-      // Get all applications for the candidate with pending assessments
+      // First, get the candidate record for this user
+      const candidate = await storage.getCandidate(userId);
+      console.log('🔍 Found candidate record:', candidate);
+      
+      if (!candidate) {
+        console.log('❌ No candidate record found for user ID:', userId);
+        return res.status(404).json({ message: 'Candidate profile not found' });
+      }
+
+      const candidateId = candidate.id;
+      console.log('🔍 Using candidate ID:', candidateId);
+
+      // Get all applications for the candidate
       const applications = await storage.getApplicationsByCandidate(candidateId);
+      console.log('🔍 All applications for candidate:', applications);
       
       // Filter applications that have pending assessments
       const pendingApplications = applications.filter((app: any) => 
         app.assessmentStatus === 'pending'
       );
       
-      console.log('Pending applications:', pendingApplications);
+      console.log('🔍 Pending applications:', pendingApplications);
       
       // Get all job assessments for these pending applications
       const allAssessments = [];
       const jobIds = [...new Set(pendingApplications.map((app: any) => app.jobId))];
       
-      console.log('Job IDs with pending assessments:', jobIds);
+      console.log('🔍 Job IDs with pending assessments:', jobIds);
       
       for (const jobId of jobIds) {
         try {
-          console.log(`Fetching assessments for job ${jobId}`);
+          console.log(`🔍 Fetching assessments for job ${jobId}`);
+          
+          // Check if the job is still active
+          const job = await storage.getJob(jobId);
+          if (!job || job.status !== 'active') {
+            console.log(`🔍 Skipping job ${jobId} - job not found or not active (status: ${job?.status})`);
+            continue;
+          }
+          
           const jobAssessments = await storage.getJobAssessments(jobId);
-          console.log(`Found ${jobAssessments.length} assessments for job ${jobId}`);
+          console.log(`🔍 Found ${jobAssessments.length} assessments for job ${jobId}`);
           
           for (const assessment of jobAssessments) {
             try {
-              console.log(`Processing assessment ${assessment.id} for template ${assessment.templateId}`);
+              console.log(`🔍 Processing assessment ${assessment.id} for template ${assessment.templateId}`);
               // Check if there's already an attempt for this assessment
               const existingAttempt = await storage.findAssessmentAttempt(
                 candidateId,
@@ -2547,13 +2653,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 jobId
               );
               
-              console.log(`Existing attempt for template ${assessment.templateId}:`, existingAttempt);
+              console.log(`🔍 Existing attempt for template ${assessment.templateId}:`, existingAttempt);
               
               // Only include assessments that don't have a completed attempt
-              if (!existingAttempt || existingAttempt.status === 'in_progress') {
-                console.log(`Fetching template for assessment ${assessment.id}`);
+              // Exclude completed, failed, or expired assessments
+              if (!existingAttempt || 
+                  (existingAttempt.status !== 'completed' && 
+                   existingAttempt.status !== 'failed' && 
+                   existingAttempt.status !== 'expired') || existingAttempt.status === 'in_progress') {
+                console.log(`🔍 Fetching template for assessment ${assessment.id}`);
                 const template = await storage.getAssessmentTemplate(assessment.templateId);
-                console.log(`Template data for ${assessment.templateId}:`, template);
+                console.log(`🔍 Template data for ${assessment.templateId}:`, template);
                 
                 if (template) {
                   const assessmentData = {
@@ -2561,24 +2671,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     template,
                     jobId,
                     attemptId: existingAttempt?.id,
-                    status: existingAttempt?.status || 'not_started'
+                    status: existingAttempt?.status || 'not_started',
+                    // Add application info for context
+                    applicationId: pendingApplications.find(app => app.jobId === jobId)?.id,
+                    applicationStatus: 'pending'
                   };
-                  console.log('Adding assessment:', assessmentData);
+                  console.log('✅ Adding assessment:', assessmentData);
                   allAssessments.push(assessmentData);
                 }
               }
             } catch (innerError) {
-              console.error(`Error processing assessment ${assessment.id}:`, innerError);
+              console.error(`❌ Error processing assessment ${assessment.id}:`, innerError);
             }
           }
         } catch (jobError) {
-          console.error(`Error fetching assessments for job ${jobId}:`, jobError);
+          console.error(`❌ Error fetching assessments for job ${jobId}:`, jobError);
         }
       }
       
+      console.log('🔍 Final assessments to return:', allAssessments);
       res.json(allAssessments);
     } catch (error: unknown) {
-      console.error('Error getting pending assessments:', error);
+      console.error('❌ Error getting pending assessments:', error);
       const errorMessage = error instanceof Error ? error.message : 'Server error';
       res.status(500).json({ message: 'Failed to get pending assessments', error: errorMessage });
     }
@@ -2635,22 +2749,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start an assessment
   app.post('/api/assessments/start/:templateId', authenticateToken, requireRole('candidate'), async (req: any, res) => {
     try {
+      console.log('🔍 Assessment start request received');
+      console.log('🔍 User from token:', req.user);
+      console.log('🔍 Request body:', req.body);
+      console.log('🔍 Template ID param:', req.params.templateId);
+      
       const templateId = parseInt(req.params.templateId);
       const jobId = req.body.jobId ? parseInt(req.body.jobId) : undefined;
       
+      console.log('🔍 Parsed templateId:', templateId, 'jobId:', jobId);
+      
       if (isNaN(templateId)) {
+        console.log('❌ Invalid template ID:', req.params.templateId);
         return res.status(400).json({ 
           success: false,
           message: 'Invalid template ID' 
         });
       }
 
+      console.log('🔍 Getting candidate for user ID:', req.user.id);
       const candidate = await storage.getCandidate(req.user.id);
+      console.log('🔍 Candidate result:', candidate);
+      
       if (!candidate) {
+        console.log('❌ No candidate found for user ID:', req.user.id);
         return res.status(404).json({ 
           success: false,
           message: 'Candidate not found' 
         });
+      }
+
+      // If this is a job-specific assessment, check if the job is active
+      if (jobId) {
+        const job = await storage.getJob(jobId);
+        if (!job) {
+          return res.status(404).json({
+            success: false,
+            message: 'Job not found'
+          });
+        }
+        if (job.status !== 'active') {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot start assessment for inactive job'
+          });
+        }
       }
 
       // Check if candidate already has an in-progress or completed attempt
@@ -3120,144 +3263,287 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Analytics Dashboard Endpoints
   app.get('/api/dashboard/kpis', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
+      console.log('🔍 Dashboard KPIs endpoint called');
       const { startDate, endDate, department } = req.query;
+      console.log('🔍 Query params:', { startDate, endDate, department });
+      
       const start = typeof startDate === 'string' ? startDate : undefined;
       const end = typeof endDate === 'string' ? endDate : undefined;
       const dept = typeof department === 'string' ? department : undefined;
+      
       let jobs = await storage.getJobs();
+      console.log('🔍 Total jobs from storage:', jobs.length);
+      console.log('🔍 Jobs:', jobs.map(j => ({ id: j.id, title: j.title, status: j.status })));
+      
       if (dept) {
         jobs = jobs.filter((j: any) => j.department === dept);
+        console.log('🔍 Filtered jobs by department:', jobs.length);
       }
+      
       const jobIds = jobs.map((j: any) => j.id);
-      const hiredRows = await db.select().from(applications).where(eq(applications.status, 'hired'));
-      const filteredHiredRows = hiredRows.filter((app: any) => jobIds.includes(app.jobId) &&
+      console.log('🔍 Job IDs for filtering:', jobIds);
+      
+      // Count all successful hires (both 'hired' and 'onboarded' statuses)
+      const successfulHires = await db.select().from(applications).where(
+        or(eq(applications.status, 'hired'), eq(applications.status, 'onboarded'))
+      );
+      console.log('🔍 All successful hires from DB:', successfulHires.length);
+      console.log('🔍 Successful hires details:', successfulHires.map(h => ({ 
+        id: h.id, 
+        jobId: h.jobId, 
+        status: h.status, 
+        hiredAt: h.hiredAt, 
+        appliedAt: h.appliedAt 
+      })));
+      
+      const filteredSuccessfulHires = successfulHires.filter((app: any) => jobIds.includes(app.jobId) &&
         (!start || new Date(app.hiredAt) >= new Date(start)) &&
         (!end || new Date(app.hiredAt) <= new Date(end)));
+      console.log('🔍 Filtered successful hires:', filteredSuccessfulHires.length);
+      console.log('🔍 Filtered hires details:', filteredSuccessfulHires.map(h => ({ 
+        id: h.id, 
+        jobId: h.jobId, 
+        status: h.status, 
+        hiredAt: h.hiredAt, 
+        appliedAt: h.appliedAt 
+      })));
+      
       let avgTimeToHire = null;
-      if (filteredHiredRows.length > 0) {
-        const totalDays = filteredHiredRows.reduce((sum, app) => {
+      if (filteredSuccessfulHires.length > 0) {
+        const totalDays = filteredSuccessfulHires.reduce((sum, app) => {
           if (app.hiredAt && app.appliedAt) {
             const diff = (new Date(app.hiredAt).getTime() - new Date(app.appliedAt).getTime()) / (1000 * 60 * 60 * 24);
+            console.log('🔍 Time to hire for app', app.id, ':', diff, 'days');
             return sum + diff;
           }
           return sum;
         }, 0);
-        avgTimeToHire = totalDays / filteredHiredRows.length;
+        avgTimeToHire = totalDays / filteredSuccessfulHires.length;
+        console.log('🔍 Total days:', totalDays, 'Average:', avgTimeToHire);
       }
-      const offersRows = await db.select().from(offers);
-      const filteredOffersRows = offersRows.filter((o: any) => jobIds.includes(o.jobId) &&
-        (!start || new Date(o.offeredAt) >= new Date(start)) &&
-        (!end || new Date(o.offeredAt) <= new Date(end)));
+      
+      // Calculate offer acceptance rate based on onboarded vs hired status
+      // onboarded = accepted offer, hired = pending offer response
+      const hiredApplications = filteredSuccessfulHires.filter(app => app.status === 'hired');
+      const onboardedApplications = filteredSuccessfulHires.filter(app => app.status === 'onboarded');
+      
       let offerAcceptanceRate = null;
-      if (filteredOffersRows.length > 0) {
-        const accepted = filteredOffersRows.filter((o: any) => o.accepted).length;
-        offerAcceptanceRate = (accepted / filteredOffersRows.length) * 100;
+      if (hiredApplications.length > 0 || onboardedApplications.length > 0) {
+        const totalOffers = hiredApplications.length + onboardedApplications.length;
+        const acceptedOffers = onboardedApplications.length;
+        offerAcceptanceRate = (acceptedOffers / totalOffers) * 100;
+        console.log('🔍 Total offers (hired + onboarded):', totalOffers);
+        console.log('🔍 Accepted offers (onboarded):', acceptedOffers);
+        console.log('🔍 Offer acceptance rate:', offerAcceptanceRate);
       }
-      const jobCostsRows = await db.select().from(jobCosts);
-      const filteredJobCostsRows = jobCostsRows.filter((jc: any) => jobIds.includes(jc.jobId) &&
-        (!start || new Date(jc.incurredAt) >= new Date(start)) &&
-        (!end || new Date(jc.incurredAt) <= new Date(end)));
+      
+      // Calculate cost per hire based on salary_min instead of job_costs table
       let costPerHire = null;
-      if (filteredHiredRows.length > 0 && filteredJobCostsRows.length > 0) {
-        const totalCost = filteredJobCostsRows.reduce((sum, jc) => sum + (jc.cost || 0), 0);
-        costPerHire = totalCost / filteredHiredRows.length;
+      if (onboardedApplications.length > 0) {
+        // Get salary information for jobs with onboarded candidates
+        const onboardedJobIds = onboardedApplications.map(app => app.jobId);
+        const jobsWithOnboarded = jobs.filter(job => onboardedJobIds.includes(job.id));
+        
+        if (jobsWithOnboarded.length > 0) {
+          const totalSalary = jobsWithOnboarded.reduce((sum, job) => sum + (job.salaryMin || 0), 0);
+          costPerHire = totalSalary / onboardedApplications.length;
+          console.log('🔍 Jobs with onboarded candidates:', jobsWithOnboarded.map(j => ({ id: j.id, title: j.title, salaryMin: j.salaryMin })));
+          console.log('🔍 Total salary for onboarded jobs:', totalSalary);
+          console.log('🔍 Cost per hire (salary-based):', costPerHire);
+        }
       }
-      res.json({ totalJobs: jobs.length, totalHires: filteredHiredRows.length, avgTimeToHire, offerAcceptanceRate, costPerHire });
+      
+      const result = { 
+        totalJobs: jobs.length, 
+        totalHires: filteredSuccessfulHires.length, 
+        avgTimeToHire, 
+        offerAcceptanceRate, 
+        costPerHire 
+      };
+      console.log('🔍 Final KPIs result:', result);
+      
+      res.json(result);
     } catch (error) {
+      console.error('❌ Error in dashboard KPIs:', error);
       res.status(500).json({ message: 'Failed to fetch KPIs', error: error?.message });
     }
   });
 
   app.get('/api/dashboard/visuals/time-to-hire', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
+      console.log('🔍 Time-to-hire endpoint called');
       const { startDate, endDate, department } = req.query;
+      console.log('🔍 Query params:', { startDate, endDate, department });
+      
       const start = typeof startDate === 'string' ? startDate : undefined;
       const end = typeof endDate === 'string' ? endDate : undefined;
       const dept = typeof department === 'string' ? department : undefined;
+      
       let jobs = await storage.getJobs();
+      console.log('🔍 Total jobs from storage:', jobs.length);
+      
       if (dept) {
         jobs = jobs.filter((j: any) => j.department === dept);
+        console.log('🔍 Filtered jobs by department:', jobs.length);
       }
+      
       const jobIds = jobs.map((j: any) => j.id);
-      const hiredApps = await db.select().from(applications).where(eq(applications.status, 'hired'));
-      const filteredApps = hiredApps.filter((app: any) => jobIds.includes(app.jobId) &&
+      console.log('🔍 Job IDs for filtering:', jobIds);
+      
+      const successfulHires = await db.select().from(applications).where(
+        or(eq(applications.status, 'hired'), eq(applications.status, 'onboarded'))
+      );
+      console.log('🔍 All successful hires from DB:', successfulHires.length);
+      
+      const filteredApps = successfulHires.filter((app: any) => jobIds.includes(app.jobId) &&
         (!start || new Date(app.hiredAt) >= new Date(start)) &&
         (!end || new Date(app.hiredAt) <= new Date(end)));
+      console.log('🔍 Filtered successful hires:', filteredApps.length);
+      
       const trend: Record<string, number[]> = {};
       for (const app of filteredApps) {
         if (app.jobId && app.hiredAt && app.appliedAt) {
           const diff = (new Date(app.hiredAt).getTime() - new Date(app.appliedAt).getTime()) / (1000 * 60 * 60 * 24);
           if (!trend[app.jobId]) trend[app.jobId] = [];
           trend[app.jobId].push(diff);
+          console.log('🔍 Time to hire for job', app.jobId, ':', diff, 'days');
         }
       }
-      const result = Object.entries(trend).map(([jobId, arr]) => ({
-        jobId,
-        avgTimeToHire: arr.reduce((a, b) => a + b, 0) / arr.length
-      }));
+      
+      // Get job titles for the chart labels
+      const result = Object.entries(trend).map(([jobId, arr]) => {
+        const jobInfo = jobs.find((j: any) => j.id === parseInt(jobId));
+        return {
+          jobId,
+          jobTitle: jobInfo?.title || `Job #${jobId}`,
+          avgTimeToHire: arr.reduce((a, b) => a + b, 0) / arr.length
+        };
+      });
+      console.log('🔍 Final time-to-hire result:', result);
+      
       res.json(result);
     } catch (error) {
+      console.error('❌ Error in time-to-hire:', error);
       res.status(500).json({ message: 'Failed to fetch time-to-hire trend', error: error?.message });
     }
   });
 
   app.get('/api/dashboard/visuals/source-of-hire', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
+      console.log('🔍 Source-of-hire endpoint called');
       const { startDate, endDate, department } = req.query;
+      console.log('🔍 Query params:', { startDate, endDate, department });
+      
       const start = typeof startDate === 'string' ? startDate : undefined;
       const end = typeof endDate === 'string' ? endDate : undefined;
       const dept = typeof department === 'string' ? department : undefined;
+      
       let jobs = await storage.getJobs();
+      console.log('🔍 Total jobs from storage:', jobs.length);
+      
       if (dept) {
         jobs = jobs.filter((j: any) => j.department === dept);
+        console.log('🔍 Filtered jobs by department:', jobs.length);
       }
+      
       const jobIds = jobs.map((j: any) => j.id);
-      const hiredApps = await db.select().from(applications).where(eq(applications.status, 'hired'));
-      const filteredApps = hiredApps.filter((app: any) => jobIds.includes(app.jobId) &&
+      console.log('🔍 Job IDs for filtering:', jobIds);
+      
+      const successfulHires = await db.select().from(applications).where(
+        or(eq(applications.status, 'hired'), eq(applications.status, 'onboarded'))
+      );
+      console.log('🔍 All successful hires from DB:', successfulHires.length);
+      console.log('🔍 Hires with source info:', successfulHires.map(h => ({ 
+        id: h.id, 
+        jobId: h.jobId, 
+        source: h.source 
+      })));
+      
+      const filteredApps = successfulHires.filter((app: any) => jobIds.includes(app.jobId) &&
         (!start || new Date(app.hiredAt) >= new Date(start)) &&
         (!end || new Date(app.hiredAt) <= new Date(end)));
+      console.log('🔍 Filtered successful hires:', filteredApps.length);
+      
       const sourceDist: Record<string, number> = {};
       for (const app of filteredApps) {
         if (app.source) {
           sourceDist[app.source] = (sourceDist[app.source] || 0) + 1;
+          console.log('🔍 Source found:', app.source, 'for app', app.id);
+        } else {
+          console.log('🔍 No source for app', app.id);
         }
       }
+      
+      console.log('🔍 Final source distribution:', sourceDist);
       res.json(sourceDist);
     } catch (error) {
+      console.error('❌ Error in source-of-hire:', error);
       res.status(500).json({ message: 'Failed to fetch source-of-hire', error: error?.message });
     }
   });
 
   app.get('/api/dashboard/visuals/offer-acceptance', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
+      console.log('🔍 Offer-acceptance endpoint called');
       const { startDate, endDate, department } = req.query;
+      console.log('🔍 Query params:', { startDate, endDate, department });
+      
       const start = typeof startDate === 'string' ? startDate : undefined;
       const end = typeof endDate === 'string' ? endDate : undefined;
       const dept = typeof department === 'string' ? department : undefined;
+      
       let jobs = await storage.getJobs();
+      console.log('🔍 Total jobs from storage:', jobs.length);
+      
       if (dept) {
         jobs = jobs.filter((j: any) => j.department === dept);
+        console.log('🔍 Filtered jobs by department:', jobs.length);
       }
+      
       const jobIds = jobs.map((j: any) => j.id);
-      const allOffers = await db.select().from(offers);
-      const filteredOffers = allOffers.filter((offer: any) => jobIds.includes(offer.jobId) &&
-        (!start || new Date(offer.offeredAt) >= new Date(start)) &&
-        (!end || new Date(offer.offeredAt) <= new Date(end)));
+      console.log('🔍 Job IDs for filtering:', jobIds);
+      
+      // Get applications with hired/onboarded status for the selected jobs
+      const successfulHires = await db.select().from(applications).where(
+        or(eq(applications.status, 'hired'), eq(applications.status, 'onboarded'))
+      );
+      
+      const filteredApps = successfulHires.filter((app: any) => jobIds.includes(app.jobId) &&
+        (!start || new Date(app.hiredAt) >= new Date(start)) &&
+        (!end || new Date(app.hiredAt) <= new Date(end)));
+      
+      console.log('🔍 Filtered successful hires:', filteredApps.length);
+      
+      // Group by job and calculate acceptance rate
       const byJob: Record<string, { total: number, accepted: number }> = {};
-      for (const offer of filteredOffers) {
-        if (!byJob[offer.jobId]) byJob[offer.jobId] = { total: 0, accepted: 0 };
-        byJob[offer.jobId].total++;
-        if (offer.accepted) byJob[offer.jobId].accepted++;
+      for (const app of filteredApps) {
+        if (!byJob[app.jobId]) byJob[app.jobId] = { total: 0, accepted: 0 };
+        byJob[app.jobId].total++;
+        if (app.status === 'onboarded') byJob[app.jobId].accepted++;
+        console.log('🔍 Processing application for job', app.jobId, 'status:', app.status, 'accepted:', app.status === 'onboarded');
       }
-      const result = Object.entries(byJob).map(([jobId, { total, accepted }]) => ({
-        jobId,
-        acceptanceRate: total > 0 ? (accepted / total) * 100 : null
-      }));
+      
+      console.log('🔍 Applications by job:', byJob);
+      
+      // Get job titles for the chart labels
+      const result = Object.entries(byJob).map(([jobId, { total, accepted }]) => {
+        const jobInfo = jobs.find((j: any) => j.id === parseInt(jobId));
+        return {
+          jobId,
+          jobTitle: jobInfo?.title || `Job #${jobId}`,
+          acceptanceRate: total > 0 ? (accepted / total) * 100 : null
+        };
+      });
+      
+      console.log('🔍 Final offer acceptance result:', result);
       res.json(result);
     } catch (error) {
+      console.error('❌ Error in offer-acceptance:', error);
       res.status(500).json({ message: 'Failed to fetch offer acceptance rates', error: error?.message });
     }
   });
+
+
 
   // --- Job Cost Management ---
   app.get('/api/job-costs', authenticateToken, requireRole('admin'), async (req: any, res) => {

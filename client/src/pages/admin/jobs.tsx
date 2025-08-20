@@ -215,6 +215,29 @@ export default function AdminJobs() {
     },
   });
 
+
+
+  const updateJobStatusMutation = useMutation({
+    mutationFn: async ({ jobId, status }: { jobId: number; status: string }) => {
+      const response = await apiRequest("PUT", `/api/jobs/${jobId}`, { status });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Job status updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update job status",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleJobSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -300,6 +323,17 @@ export default function AdminJobs() {
     }
   };
 
+
+
+  const handleUpdateJobStatus = async (jobId: number, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const action = currentStatus === 'active' ? 'deactivate' : 'activate';
+    
+    if (window.confirm(`Are you sure you want to ${action} this job?`)) {
+      await updateJobStatusMutation.mutateAsync({ jobId, status: newStatus });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -364,6 +398,18 @@ export default function AdminJobs() {
               <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <FileText className="h-5 w-5" />
                 <span>Assessment Templates</span>
+              </a>
+            </Link>
+            <Link href="/admin/assessment-categories">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Assessment Categories</span>
+              </a>
+            </Link>
+            <Link href="/admin/assessment-analytics">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
+                <BarChart3 className="h-5 w-5" />
+                <span>Assessment Analytics</span>
               </a>
             </Link>
           </nav>
@@ -542,7 +588,7 @@ export default function AdminJobs() {
                     </div>
                     <Button 
                       type="submit" 
-                      disabled={createJobMutation.isPending || createTemplateMutation.isPending || updateJobMutation.isPending}
+                      disabled={createJobMutation.isPending || createTemplateMutation.isPending || updateJobMutation.isPending || updateJobStatusMutation.isPending}
                     >
                       {editingJob 
                         ? (updateJobMutation.isPending ? "Updating..." : "Update Job")
@@ -762,7 +808,13 @@ export default function AdminJobs() {
                             <Button variant="ghost" size="sm" onClick={() => handleEditJob(job)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                                                        <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleUpdateJobStatus(job.id, job.status)}
+                              disabled={updateJobStatusMutation.isPending}
+                              className="text-red-600 hover:text-red-700"
+                            >
                               <X className="h-4 w-4" />
                             </Button>
                           </td>

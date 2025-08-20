@@ -335,10 +335,7 @@ export default function AdminPipeline() {
       const data = await response.json();
       setDebugData(data);
       
-      toast({
-        title: "Debug Info",
-        description: `${data.applicationsWithResumeText}/${data.totalApplications} candidates have resume text`,
-      });
+
     } catch (err: any) {
       console.error("Debug error:", err);
       toast({
@@ -486,6 +483,18 @@ export default function AdminPipeline() {
               <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <FileText className="h-5 w-5" />
                 <span>Assessment Templates</span>
+              </a>
+            </Link>
+            <Link href="/admin/assessment-categories">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
+                <FileText className="h-5 w-5" />
+                <span>Assessment Categories</span>
+              </a>
+            </Link>
+            <Link href="/admin/assessment-analytics">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
+                <BarChart3 className="h-5 w-5" />
+                <span>Assessment Analytics</span>
               </a>
             </Link>
           </nav>
@@ -637,18 +646,6 @@ export default function AdminPipeline() {
                 {/* Action Buttons */}
                 <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                                     <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setJobWeights({
-                        EducationScore: 0.4,
-                        SkillsScore: 0.3,
-                        ExperienceYearsScore: 0.2,
-                        ExperienceRelevanceScore: 0.1,
-                      })}
-                    >
-                      Reset to Default
-                    </Button>
                                          <Button
                        variant="outline"
                        size="sm"
@@ -732,17 +729,6 @@ export default function AdminPipeline() {
                 {/* Debug and Batch Extraction Section */}
                 <div className="mt-4 space-y-3">
                   <div className="flex items-center space-x-3">
-                    <Button
-                      onClick={handleDebugResumeStatus}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center space-x-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                      <span>Debug Resume Status</span>
-                    </Button>
 
                     <Button
                       onClick={handleDownloadCSV}
@@ -755,22 +741,7 @@ export default function AdminPipeline() {
                     </Button>
                   </div>
 
-                  {debugData && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-sm font-medium text-blue-800">Debug Info</span>
-                      </div>
-                      <div className="text-sm text-blue-700">
-                        <p>Job: {debugData.jobTitle}</p>
-                        <p>Total Applications: {debugData.totalApplications}</p>
-                        <p>With Resume Text: {debugData.applicationsWithResumeText}</p>
-                        <p>Without Resume Text: {debugData.applicationsWithoutResumeText}</p>
-                      </div>
-                    </div>
-                  )}
+
 
                   {/* Removed extractError as it's no longer used */}
                 </div>

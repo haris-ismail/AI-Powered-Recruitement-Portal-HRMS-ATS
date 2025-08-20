@@ -61,16 +61,21 @@ export default function AdminDashboard() {
   const { data: timeToHireData } = useQuery<any[]>({
     queryKey: ['/api/dashboard/visuals/time-to-hire'],
   });
-  const { data: sourceOfHireData } = useQuery<any>({
-    queryKey: ['/api/dashboard/visuals/source-of-hire'],
-  });
   const { data: offerAcceptanceData } = useQuery<any[]>({
     queryKey: ['/api/dashboard/visuals/offer-acceptance'],
   });
 
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 Dashboard data received:');
+    console.log('🔍 KPIs:', kpis);
+    console.log('🔍 Time to hire data:', timeToHireData);
+    console.log('🔍 Offer acceptance data:', offerAcceptanceData);
+  }, [kpis, timeToHireData, offerAcceptanceData]);
+
   // Prepare chart data
   const timeToHireChart = timeToHireData ? {
-    labels: timeToHireData.map((d: any) => `Job #${d.jobId}`),
+    labels: timeToHireData.map((d: any) => d.jobTitle || `Job #${d.jobId}`),
     datasets: [{
       label: 'Avg. Time to Hire (days)',
       data: timeToHireData.map((d: any) => d.avgTimeToHire),
@@ -78,23 +83,10 @@ export default function AdminDashboard() {
     }],
   } : undefined;
 
-  const sourceOfHireChart = sourceOfHireData ? {
-    labels: Object.keys(sourceOfHireData),
-    datasets: [{
-      label: 'Source of Hire',
-      data: Object.values(sourceOfHireData),
-      backgroundColor: [
-        'rgba(99, 102, 241, 0.6)',
-        'rgba(16, 185, 129, 0.6)',
-        'rgba(251, 191, 36, 0.6)',
-        'rgba(239, 68, 68, 0.6)',
-        'rgba(139, 92, 246, 0.6)'
-      ],
-    }],
-  } : undefined;
+
 
   const offerAcceptanceChart = offerAcceptanceData ? {
-    labels: offerAcceptanceData.map((d: any) => `Job #${d.jobId}`),
+    labels: offerAcceptanceData.map((d: any) => d.jobTitle || `Job #${d.jobId}`),
     datasets: [{
       label: 'Offer Acceptance Rate (%)',
       data: offerAcceptanceData.map((d: any) => d.acceptanceRate),
@@ -180,6 +172,7 @@ export default function AdminDashboard() {
               <BarChart3 className="h-5 w-5" />
               <span>Assessment Analytics</span>
             </Link>
+
           </nav>
         </aside>
 
@@ -218,21 +211,18 @@ export default function AdminDashboard() {
             </Card>
             <Card>
               <CardContent className="p-6">
-                <p className="text-sm font-medium text-gray-600">Cost per Hire</p>
+                <p className="text-sm font-medium text-gray-600">Salary per Hire</p>
                 <p className="text-3xl font-bold text-gray-900">{kpis?.costPerHire ? `Rs. ${kpis.costPerHire.toLocaleString()}` : '-'}</p>
               </CardContent>
             </Card>
           </div>
           {/* Analytics Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <Card>
               <CardHeader><CardTitle>Time-to-Hire Trend</CardTitle></CardHeader>
               <CardContent>{timeToHireChart ? <Bar data={timeToHireChart} /> : <p>Loading...</p>}</CardContent>
             </Card>
-            <Card>
-              <CardHeader><CardTitle>Source of Hire</CardTitle></CardHeader>
-              <CardContent>{sourceOfHireChart ? <Pie data={sourceOfHireChart} /> : <p>Loading...</p>}</CardContent>
-            </Card>
+
             <Card>
               <CardHeader><CardTitle>Offer Acceptance Rate</CardTitle></CardHeader>
               <CardContent>{offerAcceptanceChart ? <Bar data={offerAcceptanceChart} /> : <p>Loading...</p>}</CardContent>

@@ -453,6 +453,14 @@ export default function AssessmentTemplatesPage() {
               <FileText className="h-5 w-5" />
               <span>Assessment Templates</span>
             </Link>
+            <Link href="/admin/assessment-categories" className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
+              <FileText className="h-5 w-5" />
+              <span>Assessment Categories</span>
+            </Link>
+            <Link href="/admin/assessment-analytics" className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
+              <BarChart3 className="h-5 w-5" />
+              <span>Assessment Analytics</span>
+            </Link>
           </nav>
         </aside>
         {/* Main Content */}
