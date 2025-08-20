@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthMigration } from '@/lib/auth-migration';
 import { 
@@ -49,6 +50,7 @@ interface Job {
   location: string;
   status: string;
   experienceLevel?: string;
+  description?: string;
   createdAt?: string;
   // Add other fields as needed
 }
@@ -191,6 +193,10 @@ export default function CandidateApplications() {
     return ((statusIndex + 1) / PIPELINE_STAGES.length) * 100;
   };
 
+  const isProfileComplete = (profile: Profile) => {
+    return profile.firstName && profile.lastName;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -260,9 +266,39 @@ export default function CandidateApplications() {
 
         {/* Main Content */}
         <main className="flex-1 p-6">
+          {/* Profile Completion Banner */}
+          {profile && (
+            <div className="mb-6">
+              {isProfileComplete(profile) ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-green-800 font-medium">Profile Complete!</span>
+                  </div>
+                  <p className="text-green-700 text-sm mt-1">
+                    Your profile is complete and you can apply for new jobs.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                    <span className="text-yellow-800 font-medium">Profile Incomplete</span>
+                  </div>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    Please complete your profile to apply for new jobs. 
+                    <Link href="/candidate" className="text-blue-600 hover:text-blue-800 ml-1 underline">
+                      Complete Profile
+                    </Link>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">My Applications</h2>
-            <p className="text-gray-600">Track your job application status</p>
+            <p className="text-gray-600">Track the status of your job applications</p>
           </div>
 
           {/* Applications List */}
@@ -430,12 +466,97 @@ export default function CandidateApplications() {
                       )}
 
                       {/* Action Buttons */}
-                      <div className="flex justify-end mt-4 pt-4 border-t border-gray-200">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4 mr-1" />
-                          View Job Details
-                        </Button>
-                      </div>
+                       <div className="flex justify-end mt-4 pt-4 border-t border-gray-200">
+                         <Dialog>
+                           <DialogTrigger asChild>
+                             <Button variant="outline" size="sm">
+                               <Eye className="h-4 w-4 mr-1" />
+                               View Job Details
+                             </Button>
+                           </DialogTrigger>
+                           <DialogContent className="max-w-2xl">
+                             <DialogHeader>
+                               <DialogTitle>{jobDetails?.title || `Job ID: ${application.jobId}`}</DialogTitle>
+                             </DialogHeader>
+                             <div className="space-y-4">
+                               <div className="flex items-center text-sm text-muted-foreground">
+                                 <Building className="h-4 w-4 mr-2" />
+                                 <span>{jobDetails?.department || "Unknown Department"}</span>
+                                 <span className="mx-2">•</span>
+                                 <span>{jobDetails?.location || "Location not specified"}</span>
+                                 {jobDetails?.experienceLevel && (
+                                   <>
+                                     <span className="mx-2">•</span>
+                                     <span>{jobDetails.experienceLevel}</span>
+                                   </>
+                                 )}
+                               </div>
+                               
+                                {(jobDetails as any)?.description && (
+                                  <div>
+                                    <h4 className="text-sm font-medium text-gray-900 mb-2">Job Description</h4>
+                                    <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">
+                                      {(jobDetails as any).description}
+                                    </p>
+                                  </div>
+                                )}
+                               
+                               <div className="grid grid-cols-2 gap-4 text-sm">
+                                 <div>
+                                   <span className="font-medium text-gray-900">Application Status:</span>
+                                   <Badge className={`ml-2 ${statusConfig.color}`}>
+                                     <IconComponent className="h-3 w-3 mr-1" />
+                                     {statusConfig.label}
+                                   </Badge>
+                                 </div>
+                                 <div>
+                                   <span className="font-medium text-gray-900">Applied On:</span>
+                                   <span className="ml-2 text-gray-700">
+                                     {new Date(application.appliedAt).toLocaleDateString()}
+                                   </span>
+                                 </div>
+                                 {application.updatedAt && (
+                                   <div>
+                                     <span className="font-medium text-gray-900">Last Updated:</span>
+                                     <span className="ml-2 text-gray-700">
+                                       {new Date(application.updatedAt).toLocaleDateString()}
+                                     </span>
+                                   </div>
+                                 )}
+                                 {jobDetails?.createdAt && (
+                                   <div>
+                                     <span className="font-medium text-gray-900">Job Posted:</span>
+                                     <span className="ml-2 text-gray-700">
+                                       {new Date(jobDetails.createdAt).toLocaleDateString()}
+                                     </span>
+                                   </div>
+                                 )}
+                               </div>
+                               
+                               {/* Show other job details added by admin */}
+                               {jobDetails && Object.entries(jobDetails).map(([key, value]) => {
+                                 const hidden = ['id','title','description','status','createdAt','department','location','experienceLevel'];
+                                 if (hidden.includes(key)) return null;
+                                 if (value === null || typeof value === 'object') return null;
+                                 const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase());
+                                 let displayVal: any = value;
+                                 if ((key === 'createdAt' || key === 'postedAt') && typeof value === 'string') {
+                                   const d = new Date(value);
+                                   if (!isNaN(d.valueOf())) {
+                                     displayVal = d.toLocaleDateString();
+                                   }
+                                 }
+                                 return (
+                                   <div key={key} className="text-sm">
+                                     <span className="font-medium text-gray-900">{label}:</span>
+                                     <span className="ml-2 text-gray-700">{displayVal}</span>
+                                   </div>
+                                 );
+                               })}
+                             </div>
+                           </DialogContent>
+                         </Dialog>
+                       </div>
                     </CardContent>
                   </Card>
                 );

@@ -158,50 +158,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!email || !password) {
         console.log('❌ Error: Missing email or password');
-        return res.status(400).json({ message: 'Email and password are required' });
+        return res.status(400).json({ 
+          message: 'Email and password are required',
+          details: 'Both email and password fields must be provided'
+        });
+      }
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        console.log('❌ Error: Invalid email format:', email);
+        return res.status(400).json({ 
+          message: 'Invalid email format',
+          details: 'Please provide a valid email address'
+        });
       }
       
       console.log('🔑 Login attempt for email:', email);
       
+      // Test database connection first
+      try {
+        console.log('🔍 Testing database connection...');
+        await db.execute(sql`SELECT 1`);
+        console.log('✅ Database connection successful');
+      } catch (dbError: any) {
+        console.error('❌ Database connection failed:', dbError);
+        return res.status(500).json({ 
+          message: 'Database connection error',
+          details: 'Unable to connect to the database. Please try again later.',
+          error: dbError.message
+        });
+      }
+      
       // Log database query
       console.log('🔍 Querying database for user...');
-      const user = await storage.getUserByEmail(email);
+      let user;
+      try {
+        user = await storage.getUserByEmail(email);
       console.log('✅ Database query completed');
+      } catch (queryError: any) {
+        console.error('❌ Database query failed:', queryError);
+        return res.status(500).json({ 
+          message: 'Database query error',
+          details: 'Failed to retrieve user information from database.',
+          error: queryError.message
+        });
+      }
       
       if (!user) {
         console.log('❌ No user found with email:', email);
-        return res.status(401).json({ message: 'Invalid credentials' });
+        return res.status(401).json({ 
+          message: 'Invalid credentials',
+          details: 'No user found with the provided email address'
+        });
       }
 
       console.log('👤 User found in database:', {
         id: user.id,
         email: user.email,
         role: user.role,
-        passwordHash: user.password
+        passwordHash: user.password ? '***HASHED***' : 'NO_PASSWORD'
       });
+      
+      // Check if user has a password hash
+      if (!user.password) {
+        console.log('❌ User has no password hash:', email);
+        return res.status(500).json({ 
+          message: 'Account configuration error',
+          details: 'User account is not properly configured. Please contact support.'
+        });
+      }
       
       // Log password comparison
       console.log('🔑 Comparing provided password...');
-      const validPassword = await bcrypt.compare(password, user.password);
+      let validPassword;
+      try {
+        validPassword = await bcrypt.compare(password, user.password);
       console.log('🔑 Password comparison result:', validPassword);
+      } catch (bcryptError: any) {
+        console.error('❌ Password comparison failed:', bcryptError);
+        return res.status(500).json({ 
+          message: 'Password verification error',
+          details: 'Failed to verify password. Please try again.',
+          error: bcryptError.message
+        });
+      }
       
       if (!validPassword) {
         console.log('❌ Invalid password for user:', email);
-        console.log('Provided password:', password);
-        console.log('Stored hash:', user.password);
-        return res.status(401).json({ message: 'Invalid credentials' });
+        console.log('Provided password length:', password.length);
+        console.log('Stored hash length:', user.password.length);
+        return res.status(401).json({ 
+          message: 'Invalid credentials',
+          details: 'The password you entered is incorrect'
+        });
       }
 
-      const token = jwt.sign(
+      console.log('✅ Password verification successful');
+      
+      // Generate JWT token
+      let token;
+      try {
+        token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
+        console.log('✅ JWT token generated successfully');
+      } catch (jwtError: any) {
+        console.error('❌ JWT token generation failed:', jwtError);
+        return res.status(500).json({ 
+          message: 'Token generation error',
+          details: 'Failed to generate authentication token. Please try again.',
+          error: jwtError.message
+        });
+      }
 
       // Generate CSRF token
-      const csrfToken = crypto.randomBytes(32).toString('hex');
+      let csrfToken;
+      try {
+        csrfToken = crypto.randomBytes(32).toString('hex');
+        console.log('✅ CSRF token generated successfully');
+      } catch (cryptoError: any) {
+        console.error('❌ CSRF token generation failed:', cryptoError);
+        return res.status(500).json({ 
+          message: 'Security token error',
+          details: 'Failed to generate security token. Please try again.',
+          error: cryptoError.message
+        });
+      }
 
       // Set httpOnly cookie with JWT token
+      try {
       res.cookie('jwt_token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production', // HTTPS only in production
@@ -209,8 +297,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         path: '/'
       });
+        console.log('✅ JWT cookie set successfully');
+      } catch (cookieError: any) {
+        console.error('❌ Failed to set JWT cookie:', cookieError);
+        return res.status(500).json({ 
+          message: 'Cookie setting error',
+          details: 'Failed to set authentication cookie. Please try again.',
+          error: cookieError.message
+        });
+      }
 
       // Set CSRF token as httpOnly cookie
+      try {
       res.cookie('csrf_token', csrfToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -218,6 +316,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         path: '/'
       });
+        console.log('✅ CSRF cookie set successfully');
+      } catch (cookieError: any) {
+        console.error('❌ Failed to set CSRF cookie:', cookieError);
+        return res.status(500).json({ 
+          message: 'Cookie setting error',
+          details: 'Failed to set security cookie. Please try again.',
+          error: cookieError.message
+        });
+      }
+
+      console.log('🎉 Login successful for user:', email);
 
       // Return user data and CSRF token (not the JWT)
       res.json({ 
@@ -229,8 +338,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         csrfToken // Client needs this for CSRF protection
       });
     } catch (error: any) {
-      console.error('Login error:', error);
-      res.status(500).json({ message: 'Server error', details: error.message });
+      console.error('❌ Login error:', error);
+      console.error('Error stack:', error.stack);
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      
+      // Determine error type and provide appropriate response
+      let statusCode = 500;
+      let errorMessage = 'Server error';
+      let errorDetails = 'An unexpected error occurred during login';
+      
+      if (error.name === 'ValidationError') {
+        statusCode = 400;
+        errorMessage = 'Validation error';
+        errorDetails = error.message;
+      } else if (error.name === 'DatabaseError' || error.message.includes('database')) {
+        statusCode = 500;
+        errorMessage = 'Database error';
+        errorDetails = 'A database error occurred. Please try again later.';
+      } else if (error.name === 'JWTError' || error.message.includes('jwt')) {
+        statusCode = 500;
+        errorMessage = 'Token error';
+        errorDetails = 'Failed to generate authentication token.';
+      } else if (error.name === 'CryptoError' || error.message.includes('crypto')) {
+        statusCode = 500;
+        errorMessage = 'Security error';
+        errorDetails = 'Failed to generate security tokens.';
+      }
+      
+      res.status(statusCode).json({ 
+        message: errorMessage, 
+        details: errorDetails,
+        error: error.message 
+      });
     }
   });
 
@@ -1101,6 +1241,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('Candidate fetched:', candidate);
         if (!candidate) {
           return res.status(404).json({ message: 'Profile not found' });
+        }
+
+        // Check if candidate profile is complete before allowing job application
+        const profile = await storage.getCandidateWithProfile(candidate.id);
+        if (!profile) {
+          return res.status(404).json({ message: 'Profile not found' });
+        }
+
+        // Validate profile completeness
+        const isProfileComplete = (
+          profile.firstName &&
+          profile.lastName &&
+          profile.dateOfBirth &&
+          profile.apartment &&
+          profile.street &&
+          profile.area &&
+          profile.city &&
+          profile.province &&
+          profile.postalCode &&
+          profile.cnic &&
+          profile.resumeUrl &&
+          profile.motivationLetter &&
+          profile.education &&
+          Array.isArray(profile.education) &&
+          profile.education.length > 0 &&
+          profile.education.every((edu: any) => 
+            edu.degree && edu.institution && edu.fromDate && edu.toDate
+          )
+        );
+
+        if (!isProfileComplete) {
+          return res.status(400).json({ 
+            message: 'Profile incomplete. Please complete all required fields before applying for jobs.',
+            requiredFields: [
+              'Personal Information (Name, Date of Birth, CNIC)',
+              'Complete Address',
+              'Resume Upload',
+              'Motivation Letter',
+              'At least one Education entry'
+            ]
+          });
         }
 
         const applicationData = insertApplicationSchema.parse({
@@ -2334,15 +2515,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Candidate ID is required' });
       }
 
-      // Get all applications for the candidate
+      // Get all applications for the candidate with pending assessments
       const applications = await storage.getApplicationsByCandidate(candidateId);
       
-      // Get unique job IDs from applications
-      const jobIds = [...new Set(applications.map((app: any) => app.jobId))];
+      // Filter applications that have pending assessments
+      const pendingApplications = applications.filter((app: any) => 
+        app.assessmentStatus === 'pending'
+      );
       
-      // Get all job assessments for these jobs
+      console.log('Pending applications:', pendingApplications);
+      
+      // Get all job assessments for these pending applications
       const allAssessments = [];
-      console.log('Job IDs to fetch assessments for:', jobIds);
+      const jobIds = [...new Set(pendingApplications.map((app: any) => app.jobId))];
+      
+      console.log('Job IDs with pending assessments:', jobIds);
       
       for (const jobId of jobIds) {
         try {
@@ -2690,6 +2877,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(attemptId)) {
         console.error(`❌ [ROUTE] Invalid attempt ID: ${req.params.attemptId}`);
         return res.status(400).json({ message: 'Invalid attempt ID' });
+      }
+      
+      // Check if candidate profile is complete before allowing assessment
+      const candidate = await storage.getCandidate(req.user.id);
+      if (!candidate) {
+        return res.status(404).json({ message: 'Candidate profile not found' });
+      }
+
+      const profile = await storage.getCandidateWithProfile(candidate.id);
+      if (!profile) {
+        return res.status(404).json({ message: 'Profile not found' });
+      }
+
+      // Validate profile completeness
+      const isProfileComplete = (
+        profile.firstName &&
+        profile.lastName &&
+        profile.dateOfBirth &&
+        profile.apartment &&
+        profile.street &&
+        profile.area &&
+        profile.city &&
+        profile.province &&
+        profile.postalCode &&
+        profile.cnic &&
+        profile.resumeUrl &&
+        profile.motivationLetter &&
+        profile.education &&
+        Array.isArray(profile.education) &&
+        profile.education.length > 0 &&
+        profile.education.every((edu: any) => 
+          edu.degree && edu.institution && edu.fromDate && edu.toDate
+        )
+      );
+
+      if (!isProfileComplete) {
+        return res.status(400).json({ 
+          message: 'Profile incomplete. Please complete all required fields before taking assessments.',
+          requiredFields: [
+            'Personal Information (Name, Date of Birth, CNIC)',
+            'Complete Address',
+            'Resume Upload',
+            'Motivation Letter',
+            'At least one Education entry'
+          ]
+        });
       }
       
       console.log(`📞 [ROUTE] Calling storage.submitAssessment with attemptId: ${attemptId}`);
@@ -3363,6 +3596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalApplications: applications.length,
         applicationsWithResumeText: debugData.filter(d => d.hasResumeText).length,
         applicationsWithoutResumeText: debugData.filter(d => !d.hasResumeText).length,
+        candidatesWithoutResume: debugData.filter(d => !d.hasResumeText).map(d => d.candidateId), // Add this line
         debugData
       });
     } catch (error) {
@@ -3451,7 +3685,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/jobs/:jobId/extract-resume-text', authenticateToken, requireRole('admin'), async (req: any, res) => {
     try {
       const jobId = parseInt(req.params.jobId);
-      const applications = await storage.getApplicationsByJob(jobId);
+      const { candidateIds } = req.body; // Support selective extraction by candidate IDs
+      
+      let applications;
+      if (candidateIds && Array.isArray(candidateIds) && candidateIds.length > 0) {
+        // Extract only for specific candidates
+        console.log(`Selective extraction requested for ${candidateIds.length} candidates:`, candidateIds);
+        applications = await storage.getApplicationsByJob(jobId);
+        applications = applications.filter(app => candidateIds.includes(app.candidateId));
+      } else {
+        // Extract for all candidates in the job
+        applications = await storage.getApplicationsByJob(jobId);
+      }
+      
+      console.log(`Processing ${applications.length} applications for resume text extraction`);
       
       let processed = 0;
       let extracted = 0;
@@ -3460,15 +3707,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const application of applications) {
         const profile = await storage.getCandidateWithProfile(application.candidateId);
         
+        console.log(`Processing candidate ${application.candidateId} (${profile?.firstName} ${profile?.lastName})`);
+        
         if (!profile || !profile.resumeUrl) {
+          console.log(`Skipping candidate ${application.candidateId}: No profile or resume URL`);
           failed++;
           continue;
         }
         
         if (profile.resumeText) {
+          console.log(`Skipping candidate ${application.candidateId}: Already has resume text (${profile.resumeText.length} chars)`);
           processed++;
           continue; // Already has resume text
         }
+        
+        console.log(`Extracting resume text for candidate ${application.candidateId} from URL: ${profile.resumeUrl}`);
         
         try {
           // Check if Python is available first
@@ -3554,6 +3807,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         message: 'Failed to batch extract resume text', 
         details: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
+  // Google OAuth callback route for Gmail API
+  app.get('/api/auth/google/callback', async (req, res) => {
+    try {
+      const { code } = req.query;
+      
+      if (!code) {
+        return res.status(400).json({ 
+          message: 'Authorization code is required',
+          error: 'Missing authorization code'
+        });
+      }
+
+      console.log('🔐 Google OAuth callback received with code');
+      
+      // Import the gmailService to get tokens
+      const { getTokensFromCode } = await import('./gmailService');
+      
+      try {
+        const tokens = await getTokensFromCode(code as string);
+        
+        console.log('✅ Tokens received successfully');
+        
+        // Return success with instructions
+        res.json({
+          success: true,
+          message: 'Authorization successful!',
+          instructions: 'Copy the refresh token below and add it to your .env file',
+          refresh_token: tokens.refresh_token,
+          env_setting: `GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}`
+        });
+        
+      } catch (tokenError: any) {
+        console.error('❌ Token exchange failed:', tokenError);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to exchange authorization code for tokens',
+          error: tokenError.message,
+          instructions: 'Please try the authorization process again'
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ OAuth callback error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'OAuth callback processing failed',
+        error: error.message
       });
     }
   });

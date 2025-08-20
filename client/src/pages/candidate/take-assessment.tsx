@@ -597,6 +597,8 @@ export default function TakeAssessmentPage() {
                   <CardContent>
                     <div className="space-y-4">
                       <p className="text-gray-600">{questions[current].questionText}</p>
+                      
+                      {/* Single Choice MCQ */}
                       {questions[current].questionType === "mcq_single" && (
                         <div className="space-y-2">
                           {questions[current].options?.map((option: string, index: number) => (
@@ -607,7 +609,7 @@ export default function TakeAssessmentPage() {
                                 name={`q${questions[current].id}`}
                                 value={option}
                                 checked={answers[questions[current].id] === option}
-                                 onChange={(e) => handleAnswer(questions[current].id, e.target.value)}
+                                onChange={(e) => handleAnswer(questions[current].id, e.target.value)}
                                 className="h-4 w-4 text-primary"
                               />
                               <label htmlFor={`q${questions[current].id}-${index}`} className="text-sm text-gray-700">
@@ -617,14 +619,56 @@ export default function TakeAssessmentPage() {
                           ))}
                         </div>
                       )}
-                      {questions[current].questionType === "short_answer" && (
-                        <div>
-                          <textarea
-                             onChange={(e) => handleAnswer(questions[current].id, e.target.value)}
-                            value={answers[questions[current].id] || ""}
-                            className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                            placeholder="Enter your answer here..."
-                          />
+
+                      {/* Multiple Choice MCQ */}
+                      {questions[current].questionType === "mcq_multiple" && (
+                        <div className="space-y-2">
+                          {questions[current].options?.map((option: string, index: number) => (
+                            <div key={index} className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`q${questions[current].id}-${index}`}
+                                value={option}
+                                checked={Array.isArray(answers[questions[current].id]) && answers[questions[current].id].includes(option)}
+                                onChange={(e) => {
+                                  const currentAnswers = answers[questions[current].id] || [];
+                                  if (e.target.checked) {
+                                    // Add option to array
+                                    handleAnswer(questions[current].id, [...currentAnswers, option]);
+                                  } else {
+                                    // Remove option from array
+                                    handleAnswer(questions[current].id, currentAnswers.filter((ans: string) => ans !== option));
+                                  }
+                                }}
+                                className="h-4 w-4 text-primary"
+                              />
+                              <label htmlFor={`q${questions[current].id}-${index}`} className="text-sm text-gray-700">
+                                {option}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* True/False Questions */}
+                      {questions[current].questionType === "true_false" && (
+                        <div className="space-y-2">
+                          {["True", "False"].map((option: string, index: number) => (
+                            <div key={index} className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                id={`q${questions[current].id}-${index}`}
+                                name={`q${questions[current].id}`}
+                                value={option}
+                                checked={answers[questions[current].id] === option}
+                                onChange={(e) => handleAnswer(questions[current].id, e.target.value)}
+                                className="h-4 w-4 text-primary"
+                              />
+                              <label htmlFor={`q${questions[current].id}-${index}`} className="text-sm text-gray-700">
+                                {option}
+                              </label>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -642,28 +686,33 @@ export default function TakeAssessmentPage() {
                   Previous
                 </Button>
                 <div className="flex-1 flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    className="w-28 justify-center"
-                    onClick={() => setCurrent(current + 1)}
-                    disabled={current === questions.length - 1}
-                  >
-                    Next
-                  </Button>
-                  <Button
-                    className="w-28 justify-center"
-                    onClick={handleSubmit}
-                    disabled={loading || questions.some(q => answers[q.id] === undefined || answers[q.id] === "")}
-                  >
-                    {loading ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                        <span>Submitting...</span>
-                      </div>
-                    ) : (
-                      "Submit"
-                    )}
-                  </Button>
+                  {/* Only show Next button if there are more questions */}
+                  {current < questions.length - 1 && (
+                    <Button
+                      variant="outline"
+                      className="w-28 justify-center"
+                      onClick={() => setCurrent(current + 1)}
+                    >
+                      Next
+                    </Button>
+                  )}
+                  {/* Show Submit button on last question or if only one question */}
+                  {(current === questions.length - 1 || questions.length === 1) && (
+                    <Button
+                      className="w-28 justify-center"
+                      onClick={handleSubmit}
+                      disabled={loading || questions.some(q => answers[q.id] === undefined || answers[q.id] === "")}
+                    >
+                      {loading ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          <span>Submitting...</span>
+                        </div>
+                      ) : (
+                        "Submit"
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

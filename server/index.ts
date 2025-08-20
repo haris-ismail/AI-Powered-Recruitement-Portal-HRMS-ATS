@@ -2,6 +2,19 @@ import dotenv from 'dotenv';
 dotenv.config();
 import { fileURLToPath } from 'url';
 import path from 'path';
+
+// Get the directory path of the current file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env file from the project root (one level up from server directory)
+const envPath = path.join(__dirname, '..', '.env');
+console.log('Loading .env file from:', envPath);
+dotenv.config({ path: envPath });
+
+// Debug: Check if JWT_SECRET is loaded
+console.log('JWT_SECRET loaded:', process.env.JWT_SECRET ? 'YES' : 'NO');
+console.log('DATABASE_URL loaded:', process.env.DATABASE_URL ? 'YES' : 'NO');
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";

@@ -17,6 +17,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("admin");
   const [showSignup, setShowSignup] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const [errorTitle, setErrorTitle] = useState<string | null>(null);
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -31,9 +33,21 @@ export default function Login() {
     });
   }, [navigate]);
 
+  const clearErrors = () => {
+    setErrorTitle(null);
+    setErrorDetails(null);
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    clearErrors();
+  };
+
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
+    setErrorDetails(null);
+    setErrorTitle(null);
 
     const formData = new FormData(event.currentTarget);
     const email = formData.get("email") as string;
@@ -51,13 +65,54 @@ export default function Login() {
       });
 
       console.log('Login response status:', response.status);
+      console.log('Login response headers:', response.headers);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Login failed');
+        let errorMessage = 'Login failed';
+        let errorDetails = '';
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          errorDetails = errorData.details || errorData.error || '';
+          console.error('Server error details:', errorData);
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        // Enhanced error messages based on status codes
+        switch (response.status) {
+          case 400:
+            errorMessage = 'Invalid request data. Please check your email and password format.';
+            break;
+          case 401:
+            errorMessage = 'Invalid credentials. Please check your email and password.';
+            break;
+          case 403:
+            errorMessage = 'Access denied. Your account may be locked or suspended.';
+            break;
+          case 404:
+            errorMessage = 'Login service not found. Please contact support.';
+            break;
+          case 500:
+            errorMessage = 'Server error occurred. Please try again later.';
+            break;
+          case 502:
+          case 503:
+          case 504:
+            errorMessage = 'Service temporarily unavailable. Please try again later.';
+            break;
+          default:
+            errorMessage = `Login failed (${response.status}): ${errorMessage}`;
+        }
+        
+        const fullErrorMessage = errorDetails ? `${errorMessage}\n\nDetails: ${errorDetails}` : errorMessage;
+        throw new Error(fullErrorMessage);
       }
 
       const data = await response.json();
+      console.log('Login successful, user data:', data);
       
       // Store CSRF token (safe to store in localStorage)
       setCsrfToken(data.csrfToken);
@@ -75,10 +130,46 @@ export default function Login() {
       }
     } catch (error: any) {
       console.error('Login error:', error);
+      
+      // Enhanced error categorization
+      let errorTitle = "Login failed";
+      let errorDescription = "An unexpected error occurred. Please try again.";
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorTitle = "Network Error";
+        errorDescription = "Unable to connect to the server. Please check your internet connection and try again.";
+      } else if (error.message.includes('Failed to fetch')) {
+        errorTitle = "Connection Error";
+        errorDescription = "The server is not responding. Please try again later or contact support.";
+      } else if (error.message.includes('Invalid credentials')) {
+        errorTitle = "Authentication Failed";
+        errorDescription = "The email or password you entered is incorrect. Please try again.";
+      } else if (error.message.includes('Server error')) {
+        errorTitle = "Server Error";
+        errorDescription = "A server error occurred. Please try again later or contact support.";
+      } else if (error.message.includes('Database')) {
+        errorTitle = "Database Error";
+        errorDescription = "A database error occurred. Please contact support.";
+      } else {
+        errorDescription = error.message || "Invalid credentials. Please check your email and password.";
+      }
+      
+      // Set error state for display
+      setErrorTitle(errorTitle);
+      setErrorDetails(errorDescription);
+      
       toast({
-        title: "Login failed",
-        description: error.message || "Invalid credentials. Please check your email and password.",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive",
+      });
+      
+      // Log detailed error for debugging
+      console.error('Detailed login error:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        cause: error.cause
       });
     } finally {
       setLoading(false);
@@ -198,7 +289,7 @@ export default function Login() {
                   <button
                     type="button"
                     className={`toggle-btn ${activeTab === 'admin' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('admin')}
+                    onClick={() => handleTabChange('admin')}
                   >
                     <img src={adminIcon} alt="Admin Icon" className="icon" />
                     Admin
@@ -206,7 +297,7 @@ export default function Login() {
                   <button
                     type="button"
                     className={`toggle-btn ${activeTab === 'candidate' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('candidate')}
+                    onClick={() => handleTabChange('candidate')}
                   >
                     <img src={candidateIcon} alt="Candidate Icon" className="icon" />
                     Candidate
@@ -274,11 +365,27 @@ export default function Login() {
                     {loading ? "Creating Account..." : "Create Account"}
                   </button>
                 <div className="signup-link">
-                  <a onClick={() => setShowSignup(false)} style={{ cursor: "pointer" }}>Already have an account? Sign in</a>
+                  <a onClick={() => {
+                    setShowSignup(false);
+                    clearErrors();
+                  }} style={{ cursor: "pointer" }}>Already have an account? Sign in</a>
                 </div>
               </form>
             ) : activeTab === 'admin' ? (
               <form onSubmit={handleLogin} className="form">
+                {errorTitle && errorDetails && (
+                  <div className="error-display" style={{
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginBottom: '20px',
+                    color: '#dc2626'
+                  }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>⚠️ {errorTitle}</div>
+                    <div style={{ fontSize: '14px', lineHeight: '1.4' }}>{errorDetails}</div>
+                  </div>
+                )}
                 <div className="form-fields">
                   <label htmlFor="admin-email" className="form-label">Email Address</label>
                   <input
@@ -307,6 +414,19 @@ export default function Login() {
               </form>
             ) : (
               <form onSubmit={handleLogin} className="form">
+                {errorTitle && errorDetails && (
+                  <div className="error-display" style={{
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginBottom: '20px',
+                    color: '#dc2626'
+                  }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>⚠️ {errorTitle}</div>
+                    <div style={{ fontSize: '14px', lineHeight: '1.4' }}>{errorDetails}</div>
+                  </div>
+                )}
                 <div className="form-fields">
                   <label htmlFor="candidate-email" className="form-label">Email Address</label>
                   <input
@@ -334,7 +454,10 @@ export default function Login() {
                   {loading ? "Signing in..." : "Sign In"}
                 </button>
                 <div className="signup-link">
-                  <a onClick={() => setShowSignup(true)} style={{ cursor: "pointer" }}>Don’t have an account? Sign up</a>
+                  <a onClick={() => {
+                    setShowSignup(true);
+                    clearErrors();
+                  }} style={{ cursor: "pointer" }}>Don’t have an account? Sign up</a>
                 </div>
               </form>
             )}

@@ -97,6 +97,7 @@ export default function CandidateProfileCard({
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showCoverLetterModal, setShowCoverLetterModal] = useState(false);
   const [location, navigate] = useLocation();
+  const [showFullProfileModal, setShowFullProfileModal] = useState(false);
 
   // Admin Notes State
   const [noteText, setNoteText] = useState("");
@@ -474,7 +475,7 @@ export default function CandidateProfileCard({
                 <span className="font-medium">Skills:</span>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {candidate.skills.map((skill: any, index: number) => (
-                    <div key={index} className="flex items-center space-x-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                    <div key={skill.id || index} className="flex items-center space-x-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
                       <Star className="h-3 w-3" />
                       <span>{skill.name}</span>
                       <span className="text-blue-600">({["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]})</span>
@@ -482,6 +483,12 @@ export default function CandidateProfileCard({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+          {/* Debug: Show skills data if available */}
+          {candidate?.skills && (
+            <div className="text-xs text-gray-500 mt-1">
+              Debug: {candidate.skills.length} skills found
             </div>
           )}
 
@@ -887,6 +894,17 @@ export default function CandidateProfileCard({
         {/* Action Buttons */}
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
           <div className="flex space-x-2">
+            {/* View Full Profile Button */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowFullProfileModal(true)}
+              className="flex items-center gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              View Full Profile
+            </Button>
+            
             {nextStatus && (
               <Button
                 size="sm"
@@ -996,6 +1014,252 @@ export default function CandidateProfileCard({
            onClose={() => setShowTemplateModal(false)}
          />
        )}
+
+      {/* Full Profile Modal */}
+      <Dialog open={showFullProfileModal} onOpenChange={setShowFullProfileModal}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Full Candidate Profile
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Basic Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <User className="h-5 w-5 text-blue-600" />
+                  Basic Information
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Name:</span>
+                    <span>{candidate.firstName} {candidate.lastName}</span>
+                  </div>
+                  {candidate.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-gray-500" />
+                      <span>{candidate.email}</span>
+                    </div>
+                  )}
+                  {candidate.dateOfBirth && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <span>DOB: {candidate.dateOfBirth}</span>
+                    </div>
+                  )}
+                  {candidate.city && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-gray-500" />
+                      <span>{candidate.city}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-green-600" />
+                  Application Details
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Status:</span>
+                    <Badge variant="outline">{application.status}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Applied:</span>
+                    <span>{new Date(application.appliedAt).toLocaleDateString()}</span>
+                  </div>
+                  {application.ai_score && (
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">AI Score:</span>
+                      <span className="font-bold text-blue-600">{application.ai_score}%</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Skills Section */}
+            {candidate?.skills && candidate.skills.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Code className="h-5 w-5 text-blue-600" />
+                  Skills & Expertise
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {candidate.skills.map((skill: any, index: number) => (
+                    <div key={skill.id || index} className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="font-medium text-blue-900">{skill.name}</div>
+                      <div className="text-sm text-blue-700">
+                        Level: {["Beginner", "", "Intermediate", "", "Expert"][skill.expertiseLevel-1]}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Experience Section */}
+            {candidate?.experience && candidate.experience.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-green-600" />
+                  Work Experience
+                </h3>
+                <div className="space-y-4">
+                  {candidate.experience.map((exp: any, index: number) => (
+                    <div key={index} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="font-medium text-green-900 text-lg">{exp.role}</div>
+                      <div className="text-green-700 font-medium">{exp.company}</div>
+                      <div className="flex items-center gap-2 text-sm text-green-600 mt-1">
+                        <Calendar className="h-4 w-4" />
+                        <span>{exp.fromDate} - {exp.toDate}</span>
+                      </div>
+                      {exp.skills && (
+                        <div className="mt-2">
+                          <div className="text-sm font-medium text-green-800 mb-1">Skills Used:</div>
+                          <div className="text-sm text-green-700">{exp.skills}</div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Education Section */}
+            {candidate?.education && candidate.education.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-purple-600" />
+                  Education
+                </h3>
+                <div className="space-y-4">
+                  {candidate.education.map((edu: any, index: number) => (
+                    <div key={index} className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="font-medium text-purple-900 text-lg">{edu.degree}</div>
+                      <div className="text-purple-700 font-medium">{edu.institution}</div>
+                      <div className="flex items-center gap-2 text-sm text-purple-600 mt-1">
+                        <Calendar className="h-4 w-4" />
+                        <span>{edu.fromDate} - {edu.toDate}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Projects Section */}
+            {candidate?.projects && candidate.projects.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Layers className="h-5 w-5 text-indigo-600" />
+                  Projects
+                </h3>
+                <div className="space-y-4">
+                  {candidate.projects.map((project: any, index: number) => (
+                    <div key={index} className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                      <div className="font-medium text-indigo-900 text-lg">{project.title}</div>
+                      {project.description && (
+                        <div className="text-indigo-700 mt-2">{project.description}</div>
+                      )}
+                      {project.techStack && (
+                        <div className="mt-2">
+                          <div className="text-sm font-medium text-indigo-800 mb-1">Technologies:</div>
+                          <div className="text-sm text-indigo-700">{project.techStack}</div>
+                        </div>
+                      )}
+                      {project.githubUrl && (
+                        <div className="mt-2">
+                          <a 
+                            href={project.githubUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800"
+                          >
+                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                            </svg>
+                            View on GitHub
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Motivation Letter */}
+            {candidate?.motivationLetter && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-orange-600" />
+                  Motivation Letter
+                </h3>
+                <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                  <div className="whitespace-pre-line text-orange-900 leading-relaxed">
+                    {candidate.motivationLetter}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Contact & Links */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Mail className="h-5 w-5 text-teal-600" />
+                Contact & Links
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {candidate.linkedin && (
+                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-200">
+                    <div className="font-medium text-teal-900 mb-1">LinkedIn</div>
+                    <a 
+                      href={candidate.linkedin} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-teal-600 hover:text-teal-800"
+                    >
+                      View Profile
+                    </a>
+                  </div>
+                )}
+                {candidate.github && (
+                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-200">
+                    <div className="font-medium text-teal-900 mb-1">GitHub</div>
+                    <a 
+                      href={candidate.github} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-teal-600 hover:text-teal-800"
+                    >
+                      View Profile
+                    </a>
+                  </div>
+                )}
+                {candidate.resumeUrl && (
+                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-200">
+                    <div className="font-medium text-teal-900 mb-1">Resume</div>
+                    <a 
+                      href={candidate.resumeUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-teal-600 hover:text-teal-800"
+                    >
+                      View Resume
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

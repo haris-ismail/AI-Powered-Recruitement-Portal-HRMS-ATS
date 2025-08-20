@@ -89,6 +89,7 @@ export const applications = pgTable("applications", {
   jobId: integer("job_id").references(() => jobs.id).notNull(),
   candidateId: integer("candidate_id").references(() => candidates.id).notNull(),
   status: text("status").notNull().default("applied"), // "applied", "shortlisted", "interview", "hired", "onboarded", "rejected"
+  assessmentStatus: text("assessment_status").default("not_required"), // "not_required", "pending", "completed", "failed"
   appliedAt: timestamp("applied_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   ai_score: integer("ai_score"), // AI score (0-100)

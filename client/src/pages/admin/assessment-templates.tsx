@@ -27,7 +27,7 @@ interface Category {
 }
 
 // Question type definitions
-type QuestionType = "mcq_single" | "mcq_multiple" | "true_false" | "short_answer";
+type QuestionType = "mcq_single" | "mcq_multiple" | "true_false";
 interface Question {
   id: number;
   templateId: number;
@@ -243,7 +243,6 @@ function QuestionManagerModal({ templateId, open, onClose }: { templateId: numbe
                   <option value="mcq_single">MCQ (Single Correct)</option>
                   <option value="mcq_multiple">MCQ (Multiple Correct)</option>
                   <option value="true_false">True/False</option>
-                  <option value="short_answer">Short Answer</option>
                 </select>
                 <input
                   type="number"

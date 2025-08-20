@@ -82,8 +82,6 @@ export default function AdminPipeline() {
 
   // Add debug and batch resume extraction functionality
   const [debugData, setDebugData] = useState<any>(null);
-  const [extractLoading, setExtractLoading] = useState(false);
-  const [extractError, setExtractError] = useState("");
 
   const { data: jobs, error: jobsError } = useQuery<Job[]>({
     queryKey: ["/api/jobs"],
@@ -229,37 +227,94 @@ export default function AdminPipeline() {
     return colors[color as keyof typeof colors] || "bg-gray-100 text-gray-800";
   };
 
-  // Placeholder for batch update API call
+  // Combined function: Check resume status, extract missing ones, then apply weights
   const handleApplyWeights = async () => {
     setWeightLoading(true);
     setWeightError("");
     try {
-      console.log("Applying weights:", jobWeights);
+      console.log("Starting optimized process: Check resume status + Extract missing + Apply weights");
       console.log("Job ID:", selectedJobId);
       
-      const response = await apiRequest("POST", `/api/jobs/${selectedJobId}/regenerate-scores`, { weights: jobWeights });
+      // Step 1: Check which candidates don't have resume text extracted
+      console.log("Step 1: Checking resume extraction status...");
+      const statusResponse = await apiRequest("GET", `/api/debug/job/${selectedJobId}/resume-status`);
       
-      console.log("Response status:", response.status);
-      
-      if (!response.ok) {
-        const err = await response.json();
-        console.error("API Error:", err);
-        throw new Error(err.message || "Failed to update weights");
+      if (!statusResponse.ok) {
+        const statusErr = await statusResponse.json();
+        console.error("Status check API Error:", statusErr);
+        throw new Error(`Resume status check failed: ${statusErr.message || "Unknown error"}`);
       }
       
-      const result = await response.json();
-      console.log("API Success:", result);
+      const statusData = await statusResponse.json();
+      console.log("Resume status data:", statusData);
       
-      // Show success message
+      // Step 2: Extract resume text only for candidates that don't have it
+      let extractResult = null;
+      if (statusData.applicationsWithoutResumeText > 0) {
+        console.log(`Step 2: Extracting resume text for ${statusData.applicationsWithoutResumeText} candidates...`);
+        
+        // Get the list of candidate IDs that don't have resume text
+        const candidatesWithoutResume = statusData.candidatesWithoutResume || [];
+        console.log("Candidates without resume text:", candidatesWithoutResume);
+        
+        if (candidatesWithoutResume.length > 0) {
+          const extractResponse = await apiRequest("POST", `/api/jobs/${selectedJobId}/extract-resume-text`, {
+            candidateIds: candidatesWithoutResume
+          });
+          
+          if (!extractResponse.ok) {
+            const extractErr = await extractResponse.json();
+            console.error("Extraction API Error:", extractErr);
+            throw new Error(`Resume extraction failed: ${extractErr.message || "Unknown error"}`);
+          }
+          
+          extractResult = await extractResponse.json();
+          console.log("Extraction result:", extractResult);
+        }
+      } else {
+        console.log("Step 2: All candidates already have resume text extracted, skipping extraction");
+      }
+      
+      // Step 3: Apply weights and regenerate scores for all candidates
+      console.log("Step 3: Applying weights and regenerating scores...");
+      console.log("Weights:", jobWeights);
+      
+      const weightsResponse = await apiRequest("POST", `/api/jobs/${selectedJobId}/regenerate-scores`, { weights: jobWeights });
+      
+      if (!weightsResponse.ok) {
+        const weightsErr = await weightsResponse.json();
+        console.error("Weights API Error:", weightsErr);
+        throw new Error(`Weights application failed: ${weightsErr.message || "Unknown error"}`);
+      }
+      
+      const weightsResult = await weightsResponse.json();
+      console.log("Weights result:", weightsResult);
+      
+      // Show success message for the operations performed
+      let successMessage = "";
+      if (extractResult) {
+        successMessage += `✅ Resume text extracted for ${extractResult.summary?.extracted || 0} candidates\n`;
+      } else {
+        successMessage += `✅ All candidates already had resume text extracted\n`;
+      }
+      successMessage += `✅ AI scores updated for ${weightsResult.updated?.length || 0} applicants`;
+      
       toast({
         title: "Success",
-        description: `Updated AI scores for ${result.updated?.length || 0} applicants`,
+        description: successMessage,
       });
       
+      // Refresh applications and debug data
       refetchApplications();
+      handleDebugResumeStatus();
     } catch (err: any) {
-      console.error("Weight application error:", err);
-      setWeightError(err?.message || "Failed to update weights");
+      console.error("Combined process error:", err);
+      setWeightError(err?.message || "Failed to complete the process");
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to complete the process",
+        variant: "destructive",
+      });
     } finally {
       setWeightLoading(false);
     }
@@ -291,43 +346,6 @@ export default function AdminPipeline() {
         description: err?.message || "Failed to get debug info",
         variant: "destructive",
       });
-    }
-  };
-
-  const handleBatchExtractResumeText = async () => {
-    if (!selectedJobId) {
-      toast({
-        title: "Error",
-        description: "Please select a job first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setExtractLoading(true);
-    setExtractError("");
-    
-    try {
-      const response = await apiRequest("POST", `/api/jobs/${selectedJobId}/extract-resume-text`);
-      const result = await response.json();
-      
-      toast({
-        title: "Success",
-        description: `Extracted resume text for ${result.summary.extracted} candidates`,
-      });
-      
-      // Refresh debug data
-      handleDebugResumeStatus();
-    } catch (err: any) {
-      console.error("Batch extraction error:", err);
-      setExtractError(err?.message || "Failed to extract resume text");
-      toast({
-        title: "Error",
-        description: err?.message || "Failed to extract resume text",
-        variant: "destructive",
-      });
-    } finally {
-      setExtractLoading(false);
     }
   };
 
@@ -694,7 +712,7 @@ export default function AdminPipeline() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
-                        <span>Apply Weights to All Applicants</span>
+                        <span>Apply AI Scoring</span>
                       </div>
                     )}
               </Button>
@@ -727,23 +745,6 @@ export default function AdminPipeline() {
                     </Button>
 
                     <Button
-                      onClick={handleBatchExtractResumeText}
-                      disabled={extractLoading}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center space-x-2"
-                    >
-                      {extractLoading ? (
-                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      )}
-                      <span>{extractLoading ? "Extracting..." : "Batch Extract Resume Text"}</span>
-                    </Button>
-
-                    <Button
                       onClick={handleDownloadCSV}
                       variant="outline"
                       size="sm"
@@ -771,16 +772,7 @@ export default function AdminPipeline() {
                     </div>
                   )}
 
-                  {extractError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <div className="flex items-center space-x-2">
-                        <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-sm text-red-600">{extractError}</span>
-                      </div>
-                    </div>
-                  )}
+                  {/* Removed extractError as it's no longer used */}
                 </div>
               </CardContent>
             </Card>

@@ -444,3 +444,10 @@ For support and questions, please contact the development team or create an issu
 ---
 
 **NASTP HRMS** - Streamlining recruitment for the digital age with AI-powered intelligence.
+
+
+***Update: 19/8/25
+fixed multiple issues:
+    - resume search functionality
+    - profile view added to both above and recruitment pipeline.
+    - added education must to save profile and candidate cannot apply until profile is min complete.

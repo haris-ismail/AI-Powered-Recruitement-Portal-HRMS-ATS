@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuthMigration } from "@/lib/auth-migration";
 import { ChatbotWidget } from "@/components/ChatbotWidget";
 import logo from "@/assets/NASTPLogo.png";
+import { getCurrentUser,logout,removeToken } from '@/lib/auth';
 
 interface AssessmentTemplate {
   id: number;
@@ -72,6 +73,45 @@ export default function CandidateAssessmentsPage() {
     retry: false,
     enabled: !!user && !authLoading, // Only run when user is authenticated
   });
+
+  // Fetch profile data for completion check
+  const { data: profile } = useQuery({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      try {
+        return await fetcher('/profile');
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+        return null;
+      }
+    },
+    refetchOnWindowFocus: false,
+    retry: false,
+    enabled: !!user && !authLoading,
+  });
+
+  const isProfileComplete = (profile: any) => {
+    return (
+      profile?.firstName &&
+      profile?.lastName &&
+      profile?.dateOfBirth &&
+      profile?.apartment &&
+      profile?.street &&
+      profile?.area &&
+      profile?.city &&
+      profile?.province &&
+      profile?.postalCode &&
+      profile?.cnic &&
+      profile?.resumeUrl &&
+      profile?.motivationLetter &&
+      profile?.education &&
+      Array.isArray(profile.education) &&
+      profile.education.length > 0 &&
+      profile.education.every((edu: any) => 
+        edu.degree && edu.institution && edu.fromDate && edu.toDate
+      )
+    );
+  };
   
   console.log('Assessments data:', assessments);
   console.log('Loading state:', isLoading);
@@ -125,6 +165,12 @@ export default function CandidateAssessmentsPage() {
     }
   };
 
+  const handleLogout = async () => {
+    // Implement logout logic
+    localStorage.removeItem('token');
+    await logout();
+    window.location.href = '/login';
+  }
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -149,17 +195,21 @@ export default function CandidateAssessmentsPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading authentication...</span>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading authentication...</p>
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-        Please log in to view your assessments.
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          Please log in to view your assessments.
+        </div>
       </div>
     );
   }
@@ -178,10 +228,7 @@ export default function CandidateAssessmentsPage() {
               <span className="text-sm font-medium text-gray-700">
                 {user?.email}
               </span>
-              <Button variant="ghost" size="sm" onClick={() => {
-                localStorage.removeItem('token');
-                window.location.href = "/login";
-              }}>
+              <Button variant="ghost" size="sm" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -222,6 +269,36 @@ export default function CandidateAssessmentsPage() {
 
         {/* Main Content */}
         <main className="flex-1 p-6">
+          {/* Profile Completion Banner */}
+          {profile && (
+            <div className="mb-6">
+              {isProfileComplete(profile) ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-green-800 font-medium">Profile Complete!</span>
+                  </div>
+                  <p className="text-green-700 text-sm mt-1">
+                    Your profile is complete and you can take assessments.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                    <span className="text-yellow-800 font-medium">Profile Incomplete</span>
+                  </div>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    Please complete your profile before taking assessments. 
+                    <Link href="/candidate" className="text-blue-600 hover:text-blue-800 ml-1 underline">
+                      Complete Profile
+                    </Link>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mb-8">
             <div className="flex items-center space-x-3 mb-2">
               <BookOpen className="h-8 w-8 text-primary" />

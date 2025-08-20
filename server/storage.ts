@@ -1132,82 +1132,211 @@ export class DatabaseStorage implements IStorage {
     return [];
   }
 
+  async getCandidatesWithFullProfile(candidateIds: number[]): Promise<any[]> {
+    if (candidateIds.length === 0) return [];
+    
+    console.log('🔍 getCandidatesWithFullProfile called with IDs:', candidateIds);
+    
+    try {
+      // Fetch candidates with all related data using proper joins
+      const candidatesWithProfile = await Promise.all(
+        candidateIds.map(async (candidateId) => {
+          console.log(`📋 Processing candidate ID: ${candidateId}`);
+          
+          // Get candidate basic info
+          const [candidate] = await db.select().from(candidates).where(eq(candidates.id, candidateId));
+          console.log(`👤 Basic candidate data for ID ${candidateId}:`, candidate);
+          
+          if (!candidate) {
+            console.log(`❌ No candidate found for ID: ${candidateId}`);
+            return null;
+          }
+          
+          // Fetch related data in parallel
+          try {
+            console.log(`🔍 Fetching related data for candidate ${candidateId}...`);
+            
+            const [skillsData, experienceData, educationData, projectsData] = await Promise.all([
+              db.select().from(skills).where(eq(skills.candidateId, candidateId)),
+              db.select().from(experience).where(eq(experience.candidateId, candidateId)),
+              db.select().from(education).where(eq(education.candidateId, candidateId)),
+              db.select().from(projects).where(eq(projects.candidateId, candidateId))
+            ]);
+            
+            console.log(`🎯 Skills data for candidate ${candidateId}:`, skillsData);
+            console.log(`💼 Experience data for candidate ${candidateId}:`, experienceData);
+            console.log(`🎓 Education data for candidate ${candidateId}:`, educationData);
+            console.log(`🚀 Projects data for candidate ${candidateId}:`, projectsData);
+            
+            // Get user email for the candidate
+            const [userData] = await db.select({ email: users.email }).from(users).where(eq(users.id, candidate.userId));
+            console.log(`📧 User email for candidate ${candidateId}:`, userData);
+            
+            const result = {
+              ...candidate,
+              email: userData?.email,
+              skills: skillsData || [],
+              experience: experienceData || [],
+              education: educationData || [],
+              projects: projectsData || []
+            };
+            
+            console.log(`✅ Final result for candidate ${candidateId}:`, result);
+            return result;
+            
+          } catch (error) {
+            console.error(`❌ Error fetching related data for candidate ${candidateId}:`, error);
+            // Return candidate with empty arrays if related data fails
+            return {
+              ...candidate,
+              email: null,
+              skills: [],
+              experience: [],
+              education: [],
+              projects: []
+            };
+          }
+        })
+      );
+      
+      const filteredResults = candidatesWithProfile.filter(Boolean);
+      console.log(`🎉 Final results count: ${filteredResults.length}`);
+      console.log('📊 Sample result structure:', filteredResults[0]);
+      
+      return filteredResults;
+    } catch (error) {
+      console.error('❌ Error in getCandidatesWithFullProfile:', error);
+      return [];
+    }
+  }
+
   async searchResumes(query: string, filters: SearchFilters, page: number, limit: number): Promise<SearchResult> {
+    console.log('🔍 Backend: searchResumes called with query:', query, 'filters:', filters);
+    
     let whereConditions = [];
     let joinExperience = false;
     let joinEducation = false;
     let joinSkills = false;
 
     if (query) {
+      // Search keyword in structured fields instead of resume text
       whereConditions.push(
-        sql`to_tsvector('english', ${candidates.resumeText}) @@ plainto_tsquery('english', ${query})`
+        or(
+          ilike(candidates.firstName, `%${query}%`),
+          ilike(candidates.lastName, `%${query}%`),
+          ilike(candidates.cnic, `%${query}%`),
+          ilike(candidates.city, `%${query}%`),
+          ilike(candidates.province, `%${query}%`),
+          ilike(candidates.motivationLetter, `%${query}%`)
+        )
       );
     }
 
-    if (filters.firstName) whereConditions.push(ilike(candidates.firstName, `%${filters.firstName}%`));
-    if (filters.lastName) whereConditions.push(ilike(candidates.lastName, `%${filters.lastName}%`));
-    if (filters.city) whereConditions.push(ilike(candidates.city, `%${filters.city}%`));
-    if (filters.province) whereConditions.push(ilike(candidates.province, `%${filters.province}%`));
-    if (filters.cnic) whereConditions.push(ilike(candidates.cnic, `%${filters.cnic}%`));
-    if (filters.motivationLetter) whereConditions.push(ilike(candidates.motivationLetter, `%${filters.motivationLetter}%`));
+    if (filters.firstName) {
+      whereConditions.push(ilike(candidates.firstName, `%${filters.firstName}%`));
+    }
+    if (filters.lastName) {
+      whereConditions.push(ilike(candidates.lastName, `%${filters.lastName}%`));
+    }
+    if (filters.city) {
+      whereConditions.push(ilike(candidates.city, `%${filters.city}%`));
+    }
+    if (filters.province) {
+      whereConditions.push(ilike(candidates.province, `%${filters.province}%`));
+    }
+    if (filters.cnic) {
+      whereConditions.push(ilike(candidates.cnic, `%${filters.cnic}%`));
+    }
+    if (filters.motivationLetter) {
+      whereConditions.push(ilike(candidates.motivationLetter, `%${filters.motivationLetter}%`));
+    }
 
-    if (filters.skills?.length) joinSkills = true;
-    if (filters.experience?.length) joinExperience = true;
-    if (filters.education?.length) joinEducation = true;
+    // Always join related tables when we have filters for them
+    if (filters.skills?.length) {
+      joinSkills = true;
+      console.log('🔍 Backend: Will join skills table for filters:', filters.skills);
+    }
+    if (filters.experience?.length) {
+      joinExperience = true;
+      console.log('🔍 Backend: Will join experience table for filters:', filters.experience);
+    }
+    if (filters.education?.length) {
+      joinEducation = true;
+      console.log('🔍 Backend: Will join education table for filters:', filters.education);
+    }
 
     let queryBuilder = db.select().from(candidates);
 
-    if (joinSkills) {
+    if (joinSkills && filters.skills) {
       queryBuilder = queryBuilder.leftJoin(skills, eq(skills.candidateId, candidates.id));
       whereConditions.push(
         or(...filters.skills.map(skill => ilike(skills.name, `%${skill}%`)))
       );
+      console.log('🔍 Backend: Added skills join and conditions');
     }
 
-    if (joinExperience) {
+    if (joinExperience && filters.experience) {
       queryBuilder = queryBuilder.leftJoin(experience, eq(experience.candidateId, candidates.id));
       whereConditions.push(
         or(...filters.experience.map(exp =>
           or(ilike(experience.company, `%${exp}%`), ilike(experience.role, `%${exp}%`))
         ))
       );
+      console.log('🔍 Backend: Added experience join and conditions');
     }
 
-    if (joinEducation) {
+    if (joinEducation && filters.education) {
       queryBuilder = queryBuilder.leftJoin(education, eq(education.candidateId, candidates.id));
       whereConditions.push(
         or(...filters.education.map(edu =>
           or(ilike(education.degree, `%${edu}%`), ilike(education.institution, `%${edu}%`))
         ))
       );
+      console.log('🔍 Backend: Added education join and conditions');
     }
 
     if (whereConditions.length > 0) {
       queryBuilder = queryBuilder.where(and(...whereConditions));
+      console.log('🔍 Backend: Applied where conditions count:', whereConditions.length);
     }
 
-    // Count total
+    // Count total - must use the same joins as the main query
     let countQuery = db.select({ count: count() }).from(candidates);
     if (joinSkills) countQuery = countQuery.leftJoin(skills, eq(skills.candidateId, candidates.id));
     if (joinExperience) countQuery = countQuery.leftJoin(experience, eq(experience.candidateId, candidates.id));
     if (joinEducation) countQuery = countQuery.leftJoin(education, eq(education.candidateId, candidates.id));
     if (whereConditions.length > 0) countQuery = countQuery.where(and(...whereConditions));
+    
     const totalResult = await countQuery;
     const total = totalResult[0]?.count || 0;
+    console.log('🔍 Backend: Total candidates found:', total);
 
-    const results = await queryBuilder
+    // Get basic candidate results first
+    const basicResults = await queryBuilder
       .limit(limit)
       .offset((page - 1) * limit)
       .orderBy(desc(candidates.createdAt));
 
-    return {
-      candidates: results,
+    console.log('🔍 Backend: Basic results count:', basicResults.length);
+    console.log('🔍 Backend: Basic results:', basicResults);
+
+    // Extract candidate IDs and fetch full profiles - ensure unique IDs
+    const candidateIds = [...new Set(basicResults.map(c => c.id))];
+    console.log('🔍 Backend: Unique candidate IDs to fetch full profiles for:', candidateIds);
+    
+    const candidatesWithFullProfile = await this.getCandidatesWithFullProfile(candidateIds);
+
+    const result = {
+      candidates: candidatesWithFullProfile,
       total,
       page,
       limit,
       filters,
       suggestions: []
     };
+    
+    console.log('🔍 Backend: Final result candidates count:', result.candidates.length);
+    return result;
   }
 
   async getSearchSuggestions(query: string): Promise<string[]> {

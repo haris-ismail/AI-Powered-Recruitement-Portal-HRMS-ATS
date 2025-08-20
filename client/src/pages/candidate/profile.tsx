@@ -43,7 +43,8 @@ import {
   Activity,
   Edit,
   X,
-  Github
+  Github,
+  AlertCircle
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import logo from "@/assets/NASTPLogo.png";
@@ -51,7 +52,7 @@ import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 function isProfileComplete(profile: any) {
   // Define required fields for completeness
-  return (
+  const basicInfoComplete = (
     profile?.firstName &&
     profile?.lastName &&
     profile?.dateOfBirth &&
@@ -60,8 +61,35 @@ function isProfileComplete(profile: any) {
     profile?.area &&
     profile?.city &&
     profile?.province &&
-    profile?.postalCode
+    profile?.postalCode &&
+    profile?.cnic &&
+    profile?.resumeUrl &&
+    profile?.motivationLetter
   );
+
+  // At least one education entry is required
+  const educationComplete = profile?.education && 
+    Array.isArray(profile.education) && 
+    profile.education.length > 0 &&
+    profile.education.every((edu: any) => 
+      edu.degree && edu.institution && edu.fromDate && edu.toDate
+    );
+
+  // Experience and projects are optional (new graduates may not have them)
+  // But if they exist, they should be properly filled
+  const experienceValid = !profile?.experience || 
+    (Array.isArray(profile.experience) && 
+     profile.experience.every((exp: any) => 
+       !exp.company || (exp.company && exp.role && exp.fromDate && exp.toDate)
+     ));
+
+  const projectsValid = !profile?.projects || 
+    (Array.isArray(profile.projects) && 
+     profile.projects.every((proj: any) => 
+       !proj.title || (proj.title && proj.description)
+     ));
+
+  return basicInfoComplete && educationComplete && experienceValid && projectsValid;
 }
 
 function ProfileCard({ profile, educationList, experienceList, skills, onEdit }: any) {
@@ -542,6 +570,7 @@ export default function CandidateProfile() {
   const [isEditing, setIsEditing] = useState<boolean | undefined>(undefined);
   const [error, setError] = useState("");
   const [resumeText, setResumeText] = useState("");
+  const [showWelcomePopup, setShowWelcomePopup] = useState(false);
 
   const { data: profileQueryData, isLoading } = useQuery<any>({
     queryKey: ["/api/profile"],
@@ -693,6 +722,10 @@ export default function CandidateProfile() {
           setIsEditing(false);
         } else {
           setIsEditing(true);
+          // Show welcome popup for new candidates
+          if (!profileQueryData.firstName && !profileQueryData.lastName) {
+            setShowWelcomePopup(true);
+          }
         }
       }
     }
@@ -887,7 +920,7 @@ export default function CandidateProfile() {
       setError("Email is missing. Please log in again.");
       return;
     }
-    if (!isProfileComplete({ ...profileData, email: user.email })) {
+    if (!isProfileComplete({ ...profileData, email: user.email, education: educationList, experience: experienceList, projects: projectsList })) {
       setError("Please fill all required fields to save your profile.");
       return;
     }
@@ -907,6 +940,8 @@ export default function CandidateProfile() {
     const dataToSend = { 
         ...profileData, 
         email: user.email,
+        education: educationList,
+        experience: experienceList,
         projects: projectsList
     };
     
@@ -1203,9 +1238,48 @@ export default function CandidateProfile() {
           </aside>
           {/* Main Content */}
           <main className="flex-1 p-6">
+            {/* Profile Completion Banner */}
+            {profileQueryData && (
+              <div className="mb-6">
+                {isProfileComplete(profileQueryData) ? (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <span className="text-green-800 font-medium">Profile Complete!</span>
+                    </div>
+                    <p className="text-green-700 text-sm mt-1">
+                      Your profile is complete and you can now apply for jobs.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle className="h-5 w-5 text-yellow-600" />
+                      <span className="text-yellow-800 font-medium">Profile Incomplete</span>
+                    </div>
+                    <p className="text-yellow-700 text-sm mt-1">
+                      Please complete all required fields to apply for jobs. Required fields include:
+                    </p>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>Personal Information (Name, Date of Birth, Address)</li>
+                        <li>CNIC</li>
+                        <li>Resume Upload</li>
+                        <li>Motivation Letter</li>
+                        <li>At least one Education entry</li>
+                      </ul>
+                      <p className="mt-2 text-xs">
+                        Note: Experience and Projects are optional for new graduates.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">My Profile</h2>
-              <p className="text-gray-600">View and edit your profile information</p>
+              <p className="text-gray-600">Complete your profile to apply for jobs</p>
             </div>
             {profileQueryData ? (
               <ProfileCard 
@@ -1291,6 +1365,45 @@ export default function CandidateProfile() {
         </aside>
         {/* Main Content */}
         <main className="flex-1 p-6">
+          {/* Profile Completion Banner */}
+          {profileQueryData && (
+            <div className="mb-6">
+              {isProfileComplete(profileQueryData) ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-green-800 font-medium">Profile Complete!</span>
+                  </div>
+                  <p className="text-green-700 text-sm mt-1">
+                    Your profile is complete and you can now apply for jobs.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                    <span className="text-yellow-800 font-medium">Profile Incomplete</span>
+                  </div>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    Please complete all required fields to apply for jobs. Required fields include:
+                  </p>
+                  <div className="mt-2 text-sm text-yellow-700">
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Personal Information (Name, Date of Birth, Address)</li>
+                      <li>CNIC</li>
+                      <li>Resume Upload</li>
+                      <li>Motivation Letter</li>
+                      <li>At least one Education entry</li>
+                    </ul>
+                    <p className="mt-2 text-xs">
+                      Note: Experience and Projects are optional for new graduates.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">My Profile</h2>
             <p className="text-gray-600">Complete your profile to apply for jobs</p>
@@ -2226,7 +2339,7 @@ export default function CandidateProfile() {
             </Card>
 
             <div className="flex justify-end gap-2">
-              {isProfileComplete({ ...profileData, email: user?.email }) && (
+              {isProfileComplete({ ...profileData, email: user?.email, education: educationList, experience: experienceList, projects: projectsList }) && (
                 <Button type="button" variant="outline" onClick={() => { setIsEditing(false); setError(""); }} className="flex items-center space-x-2">
                   <X className="h-4 w-4" />
                   <span>Cancel</span>
@@ -2234,7 +2347,7 @@ export default function CandidateProfile() {
               )}
               <Button 
                 type="submit" 
-                disabled={updateProfileMutation.isPending || !isProfileComplete({ ...profileData, email: user?.email })}
+                disabled={updateProfileMutation.isPending || !isProfileComplete({ ...profileData, email: user?.email, education: educationList, experience: experienceList, projects: projectsList })}
                 className="px-8 flex items-center space-x-2"
               >
                 {updateProfileMutation.isPending ? (
@@ -2252,6 +2365,70 @@ export default function CandidateProfile() {
             </div>
           </form>
         </main>
+        
+        {/* Welcome Popup for New Candidates */}
+        <Dialog open={showWelcomePopup} onOpenChange={setShowWelcomePopup}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2 text-xl">
+                <User className="h-6 w-6 text-blue-600" />
+                <span>Welcome! Complete Your Profile</span>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2">Required Fields to Complete:</h3>
+                <div className="space-y-2 text-sm text-blue-800">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-medium">Personal Information:</h4>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>First Name</li>
+                        <li>Last Name</li>
+                        <li>Date of Birth</li>
+                        <li>CNIC (14 digits)</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="font-medium">Address:</h4>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Apartment/Unit</li>
+                        <li>Street</li>
+                        <li>Area</li>
+                        <li>City</li>
+                        <li>Province</li>
+                        <li>Postal Code</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <h4 className="font-medium">Documents & Information:</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Resume Upload</li>
+                      <li>Motivation Letter</li>
+                      <li>At least one Education entry</li>
+                    </ul>
+                  </div>
+                  <div className="mt-3 p-2 bg-blue-100 rounded">
+                    <p className="text-xs">
+                      <strong>Note:</strong> Experience and Projects are optional for new graduates.
+                      You can add them later to enhance your profile.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-center">
+                <Button 
+                  onClick={() => setShowWelcomePopup(false)}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Got it! Let me complete my profile
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+        
         <ChatbotWidget />
       </div>
     </div>

@@ -5,8 +5,8 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '698347749849-ctith6ro5un87v2m5u8q3a5n4guandm9.apps.googleusercontent.com';
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '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';
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '724529091733-5cn0k68nde5prn1mno0f84b0nvr8ep8r.apps.googleusercontent.com';
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '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';
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback';
 
 const oauth2Client = new google.auth.OAuth2(

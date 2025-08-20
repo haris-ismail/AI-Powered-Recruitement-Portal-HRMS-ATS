@@ -10,8 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { fetcher } from '@/lib/fetcher';
-import { getCurrentUser } from '@/lib/auth';
-import { removeToken } from '@/lib/auth';
+import { getCurrentUser,logout,removeToken } from '@/lib/auth';
+// import { removeToken } from '@/lib/auth';
 
 import { 
   User, 
@@ -23,7 +23,10 @@ import {
   Search,
   Building,
   LogOut,
-  BookOpen
+  BookOpen,
+  Bell,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react";
 import logo from "@/assets/NASTPLogo.png";
 import { ChatbotWidget } from "@/components/ChatbotWidget";
@@ -75,6 +78,8 @@ export default function CandidateJobs() {
   const [applyingJobId, setApplyingJobId] = useState<number | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const [justAppliedJobId, setJustAppliedJobId] = useState<number | null>(null);
+  const [showAssessmentModal, setShowAssessmentModal] = useState(false);
+  const [pendingAssessmentJob, setPendingAssessmentJob] = useState<{jobId: number, templateId: string} | null>(null);
 
   const { data: jobs = [], isLoading: isJobsLoading, error: jobsError } = useQuery({
     queryKey: ['jobs'],
@@ -140,16 +145,59 @@ export default function CandidateJobs() {
       console.log('Processed assessmentTemplateId:', templateIdStr);
 
       if (templateIdStr && templateIdStr !== 'null' && templateIdStr !== 'undefined' && templateIdStr !== '') {
-        // Assessment required – redirect to assessment page
-        window.location.href = `/assessment/${templateIdStr}?jobId=${jobId}`;
+        // Assessment required – show modal
+        setPendingAssessmentJob({ jobId: Number(jobId), templateId: templateIdStr });
+        setShowAssessmentModal(true);
         return;
       }
 
       // No assessment required – directly submit application
+      await submitApplication(Number(jobId), 'not_required');
+    } catch (err: any) {
+      console.error('Error in handleApply:', err);
+      alert(err?.message || 'Failed to process application.');
+    } finally {
+      setApplyingJobId(null);
+    }
+  };
+
+  const handleStartAssessmentNow = async () => {
+    if (!pendingAssessmentJob) return;
+    
+    try {
+      setShowAssessmentModal(false);
+      // Start assessment now
+      window.location.href = `/assessment/${pendingAssessmentJob.templateId}?jobId=${pendingAssessmentJob.jobId}`;
+    } catch (err: any) {
+      console.error('Error starting assessment:', err);
+      alert(err?.message || 'Failed to start assessment.');
+    }
+  };
+
+  const handleApplyWithoutAssessment = async () => {
+    if (!pendingAssessmentJob) return;
+    
+    try {
+      setShowAssessmentModal(false);
+      // Apply without assessment - will be pending
+      console.log('User chose to apply without assessment - marking as pending');
+      await submitApplication(pendingAssessmentJob.jobId, 'pending');
+    } catch (err: any) {
+      console.error('Error submitting application:', err);
+      alert(err?.message || 'Failed to submit application.');
+    }
+  };
+
+  const submitApplication = async (jobId: number, assessmentStatus: string) => {
+    try {
+      // Submit application
       await fetcher('/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: Number(jobId) })
+        body: JSON.stringify({ 
+          jobId: jobId,
+          assessmentStatus: assessmentStatus
+        })
       });
 
       // Refetch applications list so Apply button becomes Withdraw etc.
@@ -157,12 +205,32 @@ export default function CandidateJobs() {
       alert('Application submitted successfully.');
     } catch (err: any) {
       console.error('Error submitting application:', err);
-      alert(err?.message || 'Failed to submit application.');
-    } finally {
-      setApplyingJobId(null);
+      
+      // Handle profile incomplete error specifically
+      if (err?.response?.status === 400 && err?.response?.data?.message?.includes('Profile incomplete')) {
+        const errorData = err.response.data;
+        let errorMessage = 'Profile incomplete. Please complete all required fields:\n\n';
+        
+        if (errorData.requiredFields) {
+          errorData.requiredFields.forEach((field: string) => {
+            errorMessage += `• ${field}\n`;
+          });
+        }
+        
+        errorMessage += '\nPlease visit your profile page to complete these fields.';
+        alert(errorMessage);
+      } else {
+        // Handle other errors
+        alert(err?.message || 'Failed to submit application. Please try again.');
+      }
+      
+      throw err;
     }
   };
 
+  const isProfileComplete = (profile: Profile) => {
+    return profile.firstName && profile.lastName && profile.email;
+  };
 
   const selectedJob = jobs?.find((job: any) => job.id === selectedJobId);
 
@@ -195,17 +263,18 @@ export default function CandidateJobs() {
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center space-x-4">
             <img src={logo} alt="NASTP Logo" className="h-20 w-auto" />
-            <Badge className="bg-accent text-white">Candidate Portal</Badge>
+            <Badge className="bg-primary text-white">Candidate Portal</Badge>
           </div>
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <span className="text-sm font-medium text-gray-700">
-                {profile?.firstName && profile?.lastName 
-                  ? `${profile.firstName} ${profile.lastName}`
-                  : user?.email
-                }
+            <Button variant="ghost" size="sm" className="relative">
+              <Bell className="h-5 w-5" />
+              <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                3
               </span>
-              <Button variant="ghost" size="sm" onClick={() => handleLogout()}>
+            </Button>
+            <div className="flex items-center space-x-3">
+              <span className="text-sm font-medium text-gray-700">{user?.email}</span>
+              <Button variant="ghost" size="sm" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -215,30 +284,30 @@ export default function CandidateJobs() {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className="w-64 bg-primary shadow-sm min-h-screen border-r border-primary-foreground/10">
+        <aside className="w-64 bg-white shadow-sm min-h-screen border-r border-gray-200">
           <nav className="p-4 space-y-2">
-            <Link href="/candidate/profile">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+            <Link href="/candidate">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <User className="h-5 w-5" />
-                <span>My Profile</span>
+                <span>Profile</span>
               </a>
             </Link>
             <Link href="/candidate/jobs">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary-foreground text-primary">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg bg-primary text-white">
                 <Briefcase className="h-5 w-5" />
-                <span>Job Listings</span>
+                <span>Available Jobs</span>
               </a>
             </Link>
             <Link href="/candidate/applications">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <FileText className="h-5 w-5" />
                 <span>My Applications</span>
               </a>
             </Link>
             <Link href="/candidate/assessments">
-              <a className="flex items-center space-x-3 px-4 py-3 rounded-lg text-primary-foreground hover:bg-primary-foreground/10">
+              <a className="flex items-center space-x-3 px-4 py-3 h-12 rounded-lg text-gray-700 hover:bg-gray-100">
                 <BookOpen className="h-5 w-5" />
-                <span>My Assessments</span>
+                <span>Assessments</span>
               </a>
             </Link>
           </nav>
@@ -246,9 +315,39 @@ export default function CandidateJobs() {
 
         {/* Main Content */}
         <main className="flex-1 p-6">
+          {/* Profile Completion Banner */}
+          {profile && (
+            <div className="mb-6">
+              {isProfileComplete(profile) ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-green-800 font-medium">Profile Complete!</span>
+                  </div>
+                  <p className="text-green-700 text-sm mt-1">
+                    Your profile is complete and you can apply for jobs.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                    <span className="text-yellow-800 font-medium">Profile Incomplete</span>
+                  </div>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    Please complete your profile before applying for jobs. 
+                    <Link href="/candidate" className="text-blue-600 hover:text-blue-800 ml-1 underline">
+                      Complete Profile
+                    </Link>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Available Jobs</h2>
-            <p className="text-gray-600">Browse and apply to open positions</p>
+            <p className="text-gray-600">Browse and apply for open positions</p>
           </div>
 
           {/* Search and Filter */}
@@ -418,8 +517,54 @@ export default function CandidateJobs() {
             </div>
           )}
         </main>
-        <ChatbotWidget />
       </div>
+      
+      {/* Assessment Choice Modal */}
+      <Dialog open={showAssessmentModal} onOpenChange={setShowAssessmentModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Assessment Required
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-gray-600 mb-6">
+              This job requires an assessment to be completed. You can choose to:
+            </p>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span className="text-sm text-blue-800">
+                  <strong>Start Now:</strong> Begin the assessment immediately
+                </span>
+              </div>
+              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                <span className="text-sm text-gray-800">
+                  <strong>Apply Later:</strong> Submit application now, complete assessment later
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button
+              variant="outline"
+              onClick={handleApplyWithoutAssessment}
+              className="px-6"
+            >
+              Apply Later
+            </Button>
+            <Button
+              onClick={handleStartAssessmentNow}
+              className="px-6"
+            >
+              Start Assessment
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      <ChatbotWidget />
     </div>
   );
 }
